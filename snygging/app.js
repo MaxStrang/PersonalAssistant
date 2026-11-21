@@ -133,89 +133,188 @@
   }
 
   // ---------- Röst: tal ut ----------
+  // Två motorer: telefonens inbyggda röst, eller Azure neural (mycket mer mänsklig).
+  const TTS_KEY = 'snygging-tts';
+  const ttsCfg = () => { try { return JSON.parse(localStorage.getItem(TTS_KEY)) || {}; } catch (e) { return {}; } };
   const synth = window.speechSynthesis;
-  let voices = [];
+  const player = new Audio();          // en och samma ljudspelare (krävs för iPhone)
+  let voices = [], speaking = false, stopCurrent = null;
+
+  // Ranka röster: neurala/"förbättrade" röster först
+  const voiceScore = v => (/natural|neural|online|premium|enhanced|förbättrad|siri/i.test(v.name) ? 10 : 0)
+    + (/google/i.test(v.name) ? 5 : 0) + (/sofie|hillevi|alva|klara/i.test(v.name) ? 2 : 0);
+
   function loadVoices() {
     if (!synth) return;
-    voices = synth.getVoices().filter(v => v.lang.replace('_', '-').toLowerCase().startsWith('sv'));
-    const sel = $('#voiceSelect');
-    sel.innerHTML = voices.length ? voices.map(v => `<option ${v.name === state.voice ? 'selected' : ''}>${esc(v.name)}</option>`).join('')
+    voices = synth.getVoices().filter(v => v.lang.replace('_', '-').toLowerCase().startsWith('sv'))
+      .sort((a, b) => voiceScore(b) - voiceScore(a));
+    $('#voiceSelect').innerHTML = voices.length
+      ? voices.map(v => `<option ${v.name === state.voice ? 'selected' : ''}>${esc(v.name)}</option>`).join('')
       : '<option>Ingen svensk röst hittades</option>';
   }
   if (synth) { loadVoices(); synth.onvoiceschanged = loadVoices; }
-  $('#voiceSelect').onchange = e => { state.voice = e.target.value; save(); };
-  $('#testVoice').onclick = () => speak('Hej snygging, så här låter jag.');
+  const pickVoice = () => voices.find(v => v.name === state.voice) || voices[0] || null;
 
-  function pickVoice() {
-    return voices.find(v => v.name === state.voice) ||
-      voices.find(v => /alva|klara|google/i.test(v.name)) || voices[0] || null;
+  function browserSpeak(text) {
+    return new Promise(resolve => {
+      if (!synth) return resolve();
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'sv-SE'; u.rate = 1.0; u.pitch = 1.0;
+      const v = pickVoice(); if (v) u.voice = v;
+      const guard = setTimeout(resolve, 2500 + text.length * 90); // iOS missar ibland onend
+      u.onend = u.onerror = () => { clearTimeout(guard); resolve(); };
+      stopCurrent = () => { synth.cancel(); resolve(); };
+      synth.speak(u);
+    });
   }
 
-  function speak(text, done) {
-    let finished = false;
-    const end = () => { if (finished) return; finished = true; clearTimeout(guard); setOrb('idle'); done && done(); };
-    if (!synth) { end(); return; }
-    synth.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'sv-SE'; u.rate = 1.05; u.pitch = 1.05;
-    const v = pickVoice(); if (v) u.voice = v;
-    u.onend = end; u.onerror = end;
-    const guard = setTimeout(end, 2500 + text.length * 90); // iOS missar ibland onend
+  async function azureSpeak(text) {
+    const c = ttsCfg();
+    const xml = text.replace(/[<>&'"]/g, ch => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[ch]));
+    const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="sv-SE">
+      <voice name="${c.voice || 'sv-SE-SofieNeural'}"><prosody rate="+4%">${xml}</prosody></voice></speak>`;
+    const r = await fetch(`https://${c.region || 'swedencentral'}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+      method: 'POST',
+      headers: { 'Ocp-Apim-Subscription-Key': c.key, 'Content-Type': 'application/ssml+xml',
+                 'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3' },
+      body: ssml,
+    });
+    if (!r.ok) throw new Error('Azure svarade ' + r.status);
+    const url = URL.createObjectURL(await r.blob());
+    player.src = url;
+    await player.play();
+    await new Promise(resolve => {
+      player.onended = player.onerror = resolve;
+      stopCurrent = () => { player.pause(); resolve(); };
+    });
+    URL.revokeObjectURL(url);
+  }
+
+  async function speak(text, done) {
+    speaking = true;
+    let errMsg = null;
     setOrb('speaking', 'Snygging pratar…');
-    synth.speak(u);
+    try {
+      if (ttsCfg().engine === 'azure' && ttsCfg().key) await azureSpeak(text);
+      else await browserSpeak(text);
+    } catch (err) {
+      errMsg = 'Azure-rösten funkar inte (' + err.message + ') – kolla nyckel och region';
+      await browserSpeak(text);
+    }
+    const wasStopped = !speaking;
+    speaking = false; stopCurrent = null;
+    setOrb('idle', errMsg);
+    if (!wasStopped && done) done();
+  }
+  function stopSpeaking() { speaking = false; if (stopCurrent) stopCurrent(); setOrb('idle'); }
+
+  // Inställningar för rösten
+  function initVoiceSettings() {
+    const c = ttsCfg();
+    $('#engineSelect').value = c.engine || 'browser';
+    $('#azureKey').value = c.key ? '••••••••' : '';
+    $('#azureRegion').value = c.region || 'swedencentral';
+    $('#azureVoice').value = c.voice || 'sv-SE-SofieNeural';
+    const toggle = () => { $('#azureBox').hidden = $('#engineSelect').value !== 'azure'; };
+    toggle();
+    const store = () => {
+      const k = $('#azureKey').value.trim();
+      localStorage.setItem(TTS_KEY, JSON.stringify({
+        engine: $('#engineSelect').value,
+        key: k.startsWith('•') ? ttsCfg().key : k,
+        region: $('#azureRegion').value.trim() || 'swedencentral',
+        voice: $('#azureVoice').value,
+      }));
+      toggle();
+    };
+    ['#engineSelect', '#azureKey', '#azureRegion', '#azureVoice'].forEach(s => $(s).onchange = store);
+    $('#voiceSelect').onchange = e => { state.voice = e.target.value; save(); };
+    $('#testVoice').onclick = () => { unlockAudio(); speak('Hej snygging! Så här låter jag nu. Vad vill du göra idag?'); };
+  }
+
+  // iPhone kräver att ljud "låses upp" i ett riktigt tryck
+  let unlocked = false;
+  function unlockAudio() {
+    if (unlocked) return; unlocked = true;
+    if (synth) synth.speak(new SpeechSynthesisUtterance(' '));
+    player.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//tAwAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAACAAABhgC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjU0AAAAAAAAAAAAAAAAJAAAAAAAAAAAAYYoRBqpAAAAAAD/+xDEAAPAAAGkAAAAIAAANIAAAARMQU1FMy4xMDBVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV';
+    player.play().catch(() => {});
   }
 
   // ---------- Röst: lyssna ----------
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let rec = null, convo = false, unlocked = false;
+  let rec = null, convo = false, stopListening = null;
 
   function setOrb(mode, text) {
     $('#orb').className = mode === 'idle' ? '' : mode;
-    $('#status').textContent = text || (mode === 'idle' ? 'Tryck och prata' : '');
+    $('#status').textContent = text != null ? text : (mode === 'idle' ? 'Tryck och prata' : '');
   }
 
   function listen() {
-    if (!SR) { setOrb('idle', 'Röststyrning stöds inte här – testa Chrome eller Safari'); return; }
-    let heard = '';
+    if (!SR) { setOrb('idle', 'Röststyrning stöds inte här – använd Chrome (Android/dator) eller Safari (iPhone)'); return; }
+    let heard = '', handled = false, silence = null;
+
+    // Körs EN gång när du pratat klart – oavsett om det är tystnad, knapptryck eller att webbläsaren slutar själv
+    const finish = () => {
+      if (handled) return;
+      handled = true;
+      clearTimeout(silence);
+      const r = rec; rec = null; stopListening = null;
+      try { r && r.abort(); } catch (e) { /* redan stoppad */ }
+      if (heard.trim()) process(heard.trim());
+      else { convo = false; setOrb('idle', 'Jag hörde inget – tryck och försök igen'); }
+    };
+
     rec = new SR();
-    rec.lang = 'sv-SE'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+    rec.lang = 'sv-SE'; rec.interimResults = true; rec.continuous = true; rec.maxAlternatives = 1;
     rec.onresult = e => {
-      heard = Array.from(e.results).map(r => r[0].transcript).join('');
+      heard = Array.from(e.results).map(r => r[0].transcript).join(' ').replace(/\s+/g, ' ');
       $('#status').textContent = '"' + heard + '"';
+      clearTimeout(silence);
+      silence = setTimeout(finish, 1600);   // 1,6 s tystnad = du är klar
     };
     rec.onerror = e => {
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') setOrb('idle', 'Tillåt mikrofonen i webbläsarens inställningar');
-      convo = false;
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        handled = true; rec = null; convo = false;
+        setOrb('idle', 'Mikrofonen är blockerad – tillåt den för sidan (hänglåset i adressfältet)');
+      } else if (e.error !== 'no-speech' && e.error !== 'aborted') {
+        $('#status').textContent = 'Mikrofonfel: ' + e.error;
+      }
     };
-    rec.onend = () => {
-      rec = null;
-      if (heard.trim()) process(heard);
-      else { convo = false; if ($('#orb').className === 'listening') setOrb('idle'); }
+    rec.onend = finish;
+    stopListening = () => {
+      try { rec && rec.stop(); } catch (e) { /* ignore */ }
+      setTimeout(finish, 800);               // om webbläsaren inte säger till själv (iOS)
     };
     try { rec.start(); setOrb('listening', 'Lyssnar…'); }
-    catch (err) { setOrb('idle'); }
+    catch (e) { rec = null; setOrb('idle', 'Kunde inte starta mikrofonen – tryck igen'); }
   }
 
   function process(text) {
     addMsg('me', text);
     setOrb('thinking', 'Tänker…');
-    const res = B.handle(text, state, new Date());
-    save();
-    if (res.ui && res.ui.tab) showTab(res.ui.tab);
-    if (res.ui && res.ui.open) openLists.add(res.ui.open);
-    render(res.ui && res.ui.flash);
+    let res;
+    try {
+      res = B.handle(text, state, new Date());
+      save();
+      if (res.ui && res.ui.tab) showTab(res.ui.tab);
+      if (res.ui && res.ui.open) openLists.add(res.ui.open);
+      render(res.ui && res.ui.flash);
+    } catch (err) {
+      res = { reply: 'Oj, något gick fel: ' + err.message, expectMore: false };
+    }
     addMsg('bot', res.reply);
     speak(res.reply, () => {
-      if (res.expectMore && convo) listen(); // fortsätt samtalet: "är det något mer?"
+      if (res.expectMore && convo) listen();   // fortsätt samtalet: "är det något mer?"
       else convo = false;
     });
   }
 
   $('#orb').onclick = () => {
-    // iOS kräver att talet "låses upp" i ett riktigt tryck
-    if (synth && !unlocked) { synth.speak(new SpeechSynthesisUtterance(' ')); unlocked = true; }
-    if (rec) { convo = false; rec.stop(); return; }
-    if (synth && synth.speaking) { convo = false; synth.cancel(); setOrb('idle'); return; }
+    unlockAudio();
+    if (stopListening) { stopListening(); return; }         // tryck igen = "jag är klar"
+    if (speaking) { convo = false; stopSpeaking(); return; } // tryck medan den pratar = tyst
     convo = true;
     listen();
   };
@@ -225,6 +324,7 @@
     const v = $('#textInput').value.trim();
     if (!v) return;
     $('#textInput').value = '';
+    unlockAudio();
     convo = false;
     process(v);
   };
@@ -368,6 +468,7 @@
   // Låt innehållet aldrig hamna bakom dockan
   new ResizeObserver(() => { document.body.style.paddingBottom = ($('.dock').offsetHeight + 16) + 'px'; }).observe($('.dock'));
   render();
+  initVoiceSettings();
   Sync.init();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();

@@ -41,7 +41,29 @@
 
     <section id="tab-settings" class="tab">
       <h2>Inställningar</h2>
-      <label class="field">Röst
+      <h3>Röst</h3>
+      <label class="field">Röstmotor
+        <select id="engineSelect">
+          <option value="browser">Telefonens inbyggda röst</option>
+          <option value="azure">Azure neural (mycket mänskligare)</option>
+        </select>
+      </label>
+      <div id="azureBox">
+        <label class="field">Azure Speech-nyckel
+          <input id="azureKey" type="password" placeholder="Key 1 från Azure-portalen" autocomplete="off">
+        </label>
+        <label class="field">Region
+          <input id="azureRegion" placeholder="swedencentral" autocomplete="off">
+        </label>
+        <label class="field">Azure-röst
+          <select id="azureVoice">
+            <option value="sv-SE-SofieNeural">Sofie (kvinna)</option>
+            <option value="sv-SE-HilleviNeural">Hillevi (kvinna)</option>
+            <option value="sv-SE-MattiasNeural">Mattias (man)</option>
+          </select>
+        </label>
+      </div>
+      <label class="field">Reservröst (telefonens)
         <select id="voiceSelect"></select>
       </label>
       <button id="testVoice" class="ghost">Testa rösten</button>

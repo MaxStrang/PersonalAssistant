@@ -18,7 +18,8 @@ header { display: flex; align-items: center; justify-content: space-between;
   padding: calc(env(safe-area-inset-top) + 14px) 18px 6px; }
 h1 { margin: 0; font-size: 26px; letter-spacing: .5px;
   background: linear-gradient(90deg, var(--a1), var(--a2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-h2 { margin: 4px 0 12px; } h3 { margin: 18px 0 6px; font-size: 15px; color: var(--muted); text-transform: capitalize; }
+h2 { margin: 4px 0 12px; } h3 { margin: 18px 0 6px; font-size: 15px; color: var(--muted); }
+#calList h3::first-letter { text-transform: uppercase; }
 .icon-btn { background: none; border: 0; color: var(--muted); font-size: 24px; padding: 6px; }
 
 .tabs { display: flex; gap: 8px; padding: 8px 18px; }

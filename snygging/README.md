@@ -31,7 +31,7 @@ Inga servrar, inga API-nycklar. Allt körs i webbläsaren och sparas på telefon
 - Första gången du trycker på pratknappen frågar telefonen om mikrofonen. Tryck *Tillåt*.
 
 ## Så pratar du med den
-Tryck på den stora knappen och prata. Efter svaret lyssnar den igen ("Är det något mer?"). Säg "nej" eller "det var allt" för att avsluta.
+Tryck på den stora knappen och prata. När du tystnar i cirka 1,5 sekund svarar den, eller så trycker du på knappen igen när du är klar. Efter svaret lyssnar den igen ("Är det något mer?"). Säg "nej" eller "det var allt" för att avsluta.
 
 - "Hallå snygging, lägg till bandyträning kl 21–22 imorgon, med samling klockan 20"
 - "Boka middag med mamma på fredag mellan 18 och 20"
@@ -59,6 +59,20 @@ Datan sparas i en hemlig gist på ditt GitHub-konto. Ingen server behövs.
 Den synkar när appen öppnas, när du byter tillbaka till den, varje minut och 1,5 sekunder efter varje ändring. Den nyaste versionen vinner.
 
 **Viktigt:** lägg aldrig token i koden eller i repot. Den sparas bara i webbläsaren på varje enhet.
+
+## Mänsklig röst (Azure neural)
+Telefonens inbyggda röst låter robotaktig. Azures neurala svenska röster (Sofie, Hillevi, Mattias) låter nästan som en människa, och gratisnivån räcker gott för privat bruk.
+
+1. Gå till portal.azure.com → **Create a resource** → sök **Speech** → **Speech service** → Create.
+2. Välj Region **Sweden Central** och Pricing tier **Free F0**. Tryck Review + create.
+3. Öppna resursen när den är klar → **Keys and Endpoint** → kopiera **Key 1**. Kolla också **Location/Region**, till exempel `swedencentral`.
+4. I Snygging: **⚙︎ → Röst → Röstmotor: Azure neural**. Klistra in nyckeln, kontrollera regionen, välj röst och tryck **Testa rösten**.
+
+Nyckeln sparas bara på enheten och synkas inte, så gör samma sak på varje enhet. Fungerar inte Azure faller appen tillbaka på telefonens röst och visar felet under knappen.
+
+**Bättre gratisröst utan Azure:**
+- iPhone: Inställningar → Hjälpmedel → Uppläst innehåll → Röster → Svenska → ladda ner **Alva (Förbättrad)**.
+- Dator: använd **Edge**. Där finns "Microsoft Sofie Online (Natural)" inbyggd.
 
 ## Bra att veta
 - Utan synk sparas data per enhet (localStorage). Du kan också använda *Exportera/Importera* under ⚙︎.
