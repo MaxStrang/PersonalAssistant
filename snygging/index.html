@@ -4,117 +4,170 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Snygging</title>
-  <meta name="theme-color" content="#0d0b1a">
+  <meta name="theme-color" content="#EEF0EC" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0E1412" media="(prefers-color-scheme: dark)">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Snygging">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="icon" href="icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <h1>Snygging</h1>
-    <button id="settingsBtn" class="icon-btn" aria-label="Inställningar">⚙︎</button>
-  </header>
-
-  <nav class="tabs">
-    <button data-tab="cal" class="active">Kalender</button>
-    <button data-tab="lists">Checklistor</button>
-  </nav>
-
-  <main>
-    <section id="tab-cal" class="tab active">
-      <div id="calList"></div>
-      <button id="icsBtn" class="ghost">Exportera till telefonens kalender (.ics)</button>
-    </section>
-
-    <section id="tab-lists" class="tab">
-      <div id="lists"></div>
-      <form id="newListForm" class="row">
-        <input name="name" placeholder="Ny checklista…" autocomplete="off">
-        <button>Skapa</button>
-      </form>
-    </section>
-
-    <section id="tab-settings" class="tab">
-      <h2>Inställningar</h2>
-      <h3>Röst</h3>
-      <label class="field">Röstmotor
-        <select id="engineSelect">
-          <option value="browser">Telefonens inbyggda röst</option>
-          <option value="azure">Azure neural (mycket mänskligare)</option>
-        </select>
-      </label>
-      <div id="azureBox">
-        <label class="field">Azure Speech-nyckel
-          <input id="azureKey" type="password" placeholder="Key 1 från Azure-portalen" autocomplete="off">
-        </label>
-        <label class="field">Region
-          <input id="azureRegion" placeholder="swedencentral" autocomplete="off">
-        </label>
-        <label class="field">Azure-röst
-          <select id="azureVoice">
-            <option value="sv-SE-SofieNeural">Sofie (kvinna)</option>
-            <option value="sv-SE-HilleviNeural">Hillevi (kvinna)</option>
-            <option value="sv-SE-MattiasNeural">Mattias (man)</option>
-          </select>
-        </label>
+  <div class="app">
+    <header class="hero">
+      <div>
+        <p id="heroDay" class="hero-day"></p>
+        <h1 id="heroDate" class="hero-date"></h1>
+        <p id="heroNext" class="hero-next"></p>
       </div>
-      <label class="field">Reservröst (telefonens)
-        <select id="voiceSelect"></select>
-      </label>
-      <button id="testVoice" class="ghost">Testa rösten</button>
-      <h3>Synk mellan enheter</h3>
-      <p class="hint">Klistra in en GitHub-token med bara behörigheten <b>gist</b>. Använd samma token på telefon och dator, så synkas allt automatiskt.</p>
-      <div class="row">
-        <input id="tokenInput" type="password" placeholder="ghp_…" autocomplete="off">
-        <button id="tokenSave">Spara</button>
-      </div>
-      <div class="row">
-        <button id="syncNow" class="ghost">Synka nu</button>
-        <button id="tokenClear" class="ghost">Koppla från</button>
-      </div>
-      <p id="syncStatus" class="hint">Inte kopplad</p>
+      <button id="settingsBtn" class="icon-btn" aria-label="Inställningar">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19.4 13a7.5 7.5 0 0 0 0-2l2-1.6-2-3.4-2.4 1a7.6 7.6 0 0 0-1.7-1L15 3.5h-4l-.4 2.5a7.6 7.6 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.5 7.5 0 0 0 0 2l-2 1.6 2 3.4 2.4-1a7.6 7.6 0 0 0 1.7 1l.4 2.5h4l.4-2.5a7.6 7.6 0 0 0 1.7-1l2.4 1 2-3.4zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
+      </button>
+    </header>
 
-      <h3>Säkerhetskopia</h3>
-      <p class="hint">Allt sparas i den här webbläsaren. Exportera för att flytta till en annan enhet.</p>
-      <div class="row">
-        <button id="exportBtn" class="ghost">Exportera</button>
-        <label class="ghost btn-like">Importera<input id="importFile" type="file" accept="application/json" hidden></label>
-      </div>
-      <h3>Exempel att säga</h3>
-      <ul class="hint">
-        <li>"Hallå snygging, lägg till bandyträning kl 21–22 imorgon, med samling klockan 20"</li>
-        <li>"Vad har jag idag?" / "Vad har jag i veckan?"</li>
-        <li>"Ta bort tandläkaren"</li>
-        <li>"Byt namn på bandyträningen till bandymatch"</li>
-        <li>"Flytta bandymatchen till imorgon kl 19"</li>
-        <li>"Ändra samlingen för bandymatchen till 18:15"</li>
-        <li>"Visa packlistan bandy"</li>
-        <li>"Bocka av skridskor och hjälm"</li>
-        <li>"Vad är kvar?" / "Nollställ packlistan"</li>
-        <li>"Lägg till vattenflaska på packlistan"</li>
-        <li>"Skapa en ny lista som heter Städning"</li>
-      </ul>
-    </section>
-  </main>
+    <nav class="seg" role="tablist">
+      <button data-tab="cal" class="active" role="tab">Kalender</button>
+      <button data-tab="lists" role="tab">Checklistor</button>
+    </nav>
+
+    <main>
+      <section id="tab-cal" class="tab active">
+        <div class="cal-layout">
+          <div class="month">
+            <div class="month-head">
+              <h2 id="monthTitle"></h2>
+              <div class="month-nav">
+                <button class="icon-btn" data-month="-1" aria-label="Föregående månad">‹</button>
+                <button class="text-btn" data-month="0">Idag</button>
+                <button class="icon-btn" data-month="1" aria-label="Nästa månad">›</button>
+              </div>
+            </div>
+            <div class="weekdays"><span>Mån</span><span>Tis</span><span>Ons</span><span>Tor</span><span>Fre</span><span>Lör</span><span>Sön</span></div>
+            <div id="grid" class="grid"></div>
+          </div>
+          <div class="agenda">
+            <h3 id="dayTitle"></h3>
+            <div id="dayList"></div>
+            <div id="upcoming"></div>
+            <button id="icsBtn" class="text-btn">Lägg in i telefonens kalender (.ics)</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="tab-lists" class="tab">
+        <div id="lists"></div>
+        <form id="newListForm" class="add-row">
+          <input name="name" placeholder="Ny checklista" autocomplete="off">
+          <button>Skapa</button>
+        </form>
+      </section>
+
+      <section id="tab-settings" class="tab settings">
+        <h2>Inställningar</h2>
+
+        <div class="group">
+          <h3>Mikrofon</h3>
+          <label class="field">Taligenkänning
+            <select id="sttSelect">
+              <option value="auto">Automatisk (Azure på iPhone)</option>
+              <option value="browser">Webbläsarens</option>
+              <option value="azure">Azure</option>
+            </select>
+          </label>
+          <button id="testMic" class="ghost">Testa mikrofonen</button>
+          <pre id="micTest" class="hint"></pre>
+        </div>
+
+        <div class="group">
+          <h3>Röst</h3>
+          <label class="field">Röstmotor
+            <select id="engineSelect">
+              <option value="browser">Enhetens inbyggda röst</option>
+              <option value="azure">Azure neural (mänskligast)</option>
+            </select>
+          </label>
+          <div id="azureBox">
+            <label class="field">Azure Speech-nyckel
+              <input id="azureKey" type="password" placeholder="Key 1 från Azure-portalen" autocomplete="off">
+            </label>
+            <label class="field">Region
+              <input id="azureRegion" placeholder="swedencentral" autocomplete="off">
+            </label>
+            <label class="field">Azure-röst
+              <select id="azureVoice">
+                <option value="sv-SE-SofieNeural">Sofie</option>
+                <option value="sv-SE-HilleviNeural">Hillevi</option>
+                <option value="sv-SE-MattiasNeural">Mattias</option>
+              </select>
+            </label>
+          </div>
+          <label class="field">Enhetens röst (reserv)
+            <select id="voiceSelect"></select>
+          </label>
+          <button id="testVoice" class="ghost">Testa rösten</button>
+          <p class="hint">Azure-nyckeln används både för rösten och för taligenkänning på iPhone. Den sparas bara på den här enheten.</p>
+        </div>
+
+        <div class="group">
+          <h3>Synk mellan enheter</h3>
+          <p class="hint">Klistra in en GitHub-token med bara behörigheten gist. Använd samma token på alla enheter.</p>
+          <div class="add-row">
+            <input id="tokenInput" type="password" placeholder="ghp_…" autocomplete="off">
+            <button id="tokenSave">Spara</button>
+          </div>
+          <div class="btn-row">
+            <button id="syncNow" class="ghost">Synka nu</button>
+            <button id="tokenClear" class="ghost">Koppla från</button>
+          </div>
+          <p id="syncStatus" class="hint">Inte kopplad</p>
+        </div>
+
+        <div class="group">
+          <h3>Säkerhetskopia</h3>
+          <div class="btn-row">
+            <button id="exportBtn" class="ghost">Exportera</button>
+            <label class="ghost btn">Importera<input id="importFile" type="file" accept="application/json" hidden></label>
+          </div>
+        </div>
+
+        <div class="group">
+          <h3>Saker du kan säga</h3>
+          <ul class="examples">
+            <li>Kan du lägga till att jag har match klockan 16:40 till 18:40 imorgon</li>
+            <li>Lägg till bandyträning på fredag kl 21–22, med samling klockan 20</li>
+            <li>Vad har jag idag? · Vad har jag i veckan?</li>
+            <li>Flytta matchen till kl 17 · Byt namn på matchen till final</li>
+            <li>Ta bort tandläkaren</li>
+            <li>Kan du skapa en checklista åt mig</li>
+            <li>Visa packlistan · Bocka av skridskor och hjälm · Vad är kvar?</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+  </div>
 
   <footer class="dock">
     <div id="chat" aria-live="polite"></div>
-    <div id="status">Tryck och prata</div>
-    <button id="orb" aria-label="Prata med Snygging">
-      <span class="ring r1"></span><span class="ring r2"></span>
-      <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
-        <path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/>
-      </svg>
-    </button>
-    <form id="textForm" class="row">
-      <input id="textInput" placeholder="…eller skriv här" autocomplete="off">
-      <button aria-label="Skicka">➤</button>
+    <p id="status"></p>
+    <form id="textForm" class="add-row" hidden>
+      <input id="textInput" placeholder="Skriv till Snygging" autocomplete="off" enterkeyhint="send">
+      <button>Skicka</button>
     </form>
+    <div class="dock-row">
+      <button id="talk" class="talk" aria-label="Prata med Snygging">
+        <span class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+        <span id="talkLabel">Prata med Snygging</span>
+      </button>
+      <button id="kbBtn" class="icon-btn round" aria-label="Skriv i stället">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zm0 2v8h16V8H4zm2 1h2v2H6V9zm3 0h2v2H9V9zm3 0h2v2h-2V9zm3 0h3v2h-3V9zM6 12h2v2H6v-2zm3 0h6v2H9v-2zm7 0h2v2h-2v-2z"/></svg>
+      </button>
+    </div>
   </footer>
 
   <script src="brain.js"></script>

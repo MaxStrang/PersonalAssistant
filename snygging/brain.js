@@ -34,13 +34,14 @@
   function norm(s) {
     return String(s).toLowerCase()
       .replace(/[–—]/g, '-')
-      .replace(/[^a-z0-9åäöéü:.\-\/ ]+/g, ' ')
+      .replace(/,/g, ' , ')
+      .replace(/[^a-z0-9åäöéü:.,\-\/ ]+/g, ' ')
       .replace(/\.(?!\d)/g, ' ')
       .replace(/\s+/g, ' ').trim();
   }
 
   function stripWake(t) {
-    return t.replace(rx('^(?:(?:hall[åa]|hallå där|hej|hejsan|tja|okej|ok|du)\\s+)?snygg(?:ing|ingen|isen)\\b\\s*'), '').trim();
+    return t.replace(rx('^(?:(?:hall[åa]|hallå där|hej|hejsan|tja|okej|ok|du)\\s+)?snygg(?:ing|ingen|isen)\\b\\s*'), '').replace(/^[\s,]+|[\s,]+$/g, '').trim();
   }
 
   // ---------- Datum & tid ----------
@@ -103,10 +104,14 @@
     'att', 'en', 'ett', 'från', 'mellan', 'min', 'mitt', 'mina', 'in', 'upp']);
 
   function cleanTitle(t) {
-    t = t.replace(rx('\\b(?:kan du|skulle du kunna|kan jag få|snälla|tack|är du snäll och|jag vill att du|jag vill)\\b', 'g'), ' ')
+    t = t.replace(/,/g, ' ').replace(rx('\\b(?:kan du|kan ni|skulle du kunna|kan jag få|snälla|tack|är du snäll och|jag vill att du|jag vill|hjälp mig)\\b', 'g'), ' ')
       .replace(rx('\\b(?:lägg(?:a)? (?:till|in)|boka(?: in)?|skapa|planera|skriv(?:a)? (?:in|upp)|notera|sätt(?:a)? upp|påminn mig om)\\b', 'g'), ' ')
       .replace(rx('\\b(?:i|till|på|in i) (?:min |mina )?kalender(?:n)?\\b', 'g'), ' ')
-      .replace(/\s+/g, ' ').trim();
+      .replace(/\s+/g, ' ').trim()
+      // "att jag har match" → "match"
+      .replace(rx('^(?:att |så att |om att |det att )?(?:jag|vi|man|du) (?:har|ska|skall|måste|behöver|borde|vill|kommer att|kommer)(?: (?:gå på|gå till|åka på|åka till|iväg på|på|till|en|ett))?\\s+'), '')
+      .replace(rx('^(?:att |det är |det blir |det finns )'), '')
+      .replace(rx('\\s+(?:åt mig|för mig|till mig)$'), '');
     const w = t.split(' ').filter(Boolean);
     while (w.length && STOP.has(w[0])) w.shift();
     while (w.length && STOP.has(w[w.length - 1])) w.pop();
@@ -127,7 +132,7 @@
   const STOPL = new Set([...STOP, 'lista', 'listan', 'checklista', 'checklistan', 'listor', 'det', 'de',
     'alla', 'av', 'ur', 'kalendern', 'kalender']);
   function stems(s) {
-    return norm(s).replace(/[:.\-\/]/g, ' ').split(' ')
+    return norm(s).replace(/[:.,\-\/]/g, ' ').split(' ')
       .filter(w => w && !STOPL.has(w))
       .map(w => w.replace(/listan$/, 'lista').slice(0, 5));
   }
@@ -147,6 +152,43 @@
     return ts >= 1 ? top : null;
   }
 
+  // ---------- Följdfrågor ("Vad ska listan heta?") ----------
+  let pending = null;
+  const PENDING_MS = 3 * 60 * 1000;
+
+  function createList(state, name, items) {
+    const list = { id: uid(), name: cap(name.trim()), items: items.map(x => ({ text: cap(x), done: false })) };
+    state.checklists.push(list); state.activeList = list.id;
+    if (items.length)
+      return { reply: `Klart! Jag har skapat ${list.name} med ${joinList(items)}. Något mer?`, expectMore: true, ui: { tab: 'lists', open: list.id } };
+    pending = { type: 'list-items', listId: list.id, at: Date.now() };
+    return { reply: `Snyggt, ${list.name} är skapad! Vad ska den innehålla?`, expectMore: true, ui: { tab: 'lists', open: list.id } };
+  }
+
+  function handlePending(p, t, state, now) {
+    const cancel = rx('^(?:avbryt|glöm det|strunta i det|skit samma|nej|nä)\\b').test(t);
+    if (p.type === 'list-name') {
+      if (cancel) return { reply: 'Okej, jag struntar i det. Något annat?', expectMore: true };
+      const name = t.replace(rx('^(?:den ska heta|den heter|kalla den|döp den till|namnet är|den kan heta|vi kan kalla den)\\s+'), '');
+      const mm = name.match(rx('^(.+?)\\s+(?:med|och den ska innehålla|som innehåller)\\s+(.+)$'));
+      return mm ? createList(state, mm[1], splitItems(mm[2])) : createList(state, name, []);
+    }
+    if (p.type === 'list-items') {
+      const list = state.checklists.find(c => c.id === p.listId);
+      if (!list) return null;
+      if (cancel || rx('^(?:inget|ingenting|det var allt|inget mer|ingen)\\b').test(t))
+        return { reply: `Okej, ${list.name} är tom så länge. Säg "lägg till" när du vill fylla på. Något mer?`, expectMore: true };
+      const items = splitItems(t.replace(rx('^(?:den ska innehålla|lägg till|lägg in|skriv upp|det ska vara)\\s+'), ''));
+      items.forEach(x => list.items.push({ text: cap(x), done: false }));
+      return { reply: `Klart! ${list.name} innehåller nu ${joinList(list.items.map(i => i.text.toLowerCase()))}. Något mer?`, expectMore: true, ui: { tab: 'lists', open: list.id } };
+    }
+    if (p.type === 'event-title') {
+      if (cancel) return { reply: 'Okej, jag lägger inte in något. Något annat?', expectMore: true };
+      return handleAdd(p.text + ' ' + t, state, now);
+    }
+    return null;
+  }
+
   // ---------- Checklistor ----------
   function findList(state, q) {
     if (!q || !stems(q).length) return state.checklists.find(c => c.id === state.activeList) || null;
@@ -157,7 +199,7 @@
     return left.length ? `Kvar på ${list.name}: ${joinList(left)}.` : `Allt på ${list.name} är klart, snyggt jobbat!`;
   }
   const listNames = s => joinList(s.checklists.map(c => c.name));
-  const splitItems = s => s.split(rx(',|\\boch\\b')).map(x => x.trim()).filter(Boolean);
+  const splitItems = s => s.split(rx(',|\\boch\\b')).map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean);
 
   function handleList(t, state) {
     let m;
@@ -173,12 +215,19 @@
       return { reply: `Klart, ${old} heter nu ${hit.text} på ${list.name}. Något mer?`, expectMore: true, ui: ui(list) };
     }
 
-    // Skapa ny lista
-    m = t.match(rx('\\b(?:skapa|gör|lägg till|starta)\\s+(?:en\\s+)?(?:ny\\s+)?(?:check)?lista(?:\\s+(?:som heter|med namnet|kallad|för))?\\s+(.+)$'));
+    // Skapa ny lista – frågar efter namn/innehåll om det saknas
+    m = t.match(rx('\\b(?:skapa|gör|göra|fixa|starta|lägg till|lägga till)\\s+(?:en\\s+)?(?:ny\\s+)?(?:check)?listan?\\b(.*)$'));
     if (m) {
-      const list = { id: uid(), name: cap(m[1].trim()), items: [] };
-      state.checklists.push(list); state.activeList = list.id;
-      return { reply: `Fixat snygging! Jag har skapat listan ${list.name}. Vad ska stå på den?`, expectMore: true, ui: ui(list) };
+      let rest = m[1].replace(rx('\\b(?:åt mig|till mig|för mig|åt oss|snälla|tack|också|nu)\\b', 'g'), ' ').replace(/\s+/g, ' ').trim();
+      rest = rest.replace(rx('^(?:som heter|som ska heta|med namnet|med titeln|kallad|som)\\s+'), '').trim();
+      let name = rest, items = [];
+      const mm = rest.match(rx('^(.+?)\\s+(?:med|som innehåller|innehållande)\\s+(.+)$'));
+      if (mm) { name = mm[1]; items = splitItems(mm[2]); }
+      if (!name) {
+        pending = { type: 'list-name', at: Date.now() };
+        return { reply: 'Javisst! Vad ska listan heta?', expectMore: true, ui: { tab: 'lists' } };
+      }
+      return createList(state, name, items);
     }
 
     // Lägg till punkt på lista
@@ -348,7 +397,10 @@
     const d = takeDate(t, now);
     const tm = takeTimes(d.text, evening);
     const title = cleanTitle(tm.text);
-    if (!title) return { reply: 'Vad ska jag lägga in i kalendern, snygging?', expectMore: true };
+    if (!title) {
+      pending = { type: 'event-title', text: t, at: Date.now() };
+      return { reply: 'Javisst! Vad ska jag lägga in?', expectMore: true };
+    }
     let date = d.date || iso(now);
     // Ingen dag sagd och tiden har redan passerat idag → imorgon
     if (!d.date && tm.start && tm.start < `${pad(now.getHours())}:${pad(now.getMinutes())}`) date = iso(addDays(now, 1));
@@ -367,6 +419,13 @@
     const t = stripWake(norm(raw));
 
     if (!t) return { reply: 'Ja snygging? Vad kan jag göra för dig?', expectMore: true };
+
+    if (pending && Date.now() - pending.at > PENDING_MS) pending = null;
+    if (pending) {
+      const p = pending; pending = null;
+      const r = handlePending(p, t, state, now);
+      if (r) return r;
+    }
 
     if (rx('^(?:nej|nä|nää|nope|det var allt|inget mer|inte just nu|tack|tack så mycket|nej tack|det är bra|det räcker|hejdå|hej då|klart)(?: (?:det var allt|tack|snygging|så mycket|hejdå|hej då|det är bra|det räcker))*$').test(t))
       return { reply: 'Okej snygging, hörs!', expectMore: false };

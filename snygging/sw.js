@@ -1,5 +1,5 @@
 // Gör att appen funkar offline. Nätverket först, så att nya versioner från GitHub syns direkt.
-const CACHE = 'snygging-v4';
+const CACHE = 'snygging-v6';
 const FILES = ['./', './index.html', './style.css', './app.js', './brain.js', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

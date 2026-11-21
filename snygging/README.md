@@ -43,6 +43,9 @@ Tryck på den stora knappen och prata. När du tystnar i cirka 1,5 sekund svarar
 - "Ändra tiden för bandymatchen till 17–18:30" / "Ändra samlingen för bandymatchen till 18:15"
 - "Ändra mjölk till havremjölk på handlalistan"
 - Du kan också trycka på en aktivitet i kalendern för att redigera den.
+- "Kan du skapa en checklista åt mig" ger följdfrågorna "Vad ska listan heta?" och "Vad ska den innehålla?"
+- "Lägg till imorgon kl 16" ger följdfrågan "Vad ska jag lägga in?"
+- Säg "avbryt" för att avsluta en följdfråga.
 - "Visa packlistan bandy" → "Bocka av skridskor och hjälm" → "Vad är kvar?"
 - "Lägg till vattenflaska på packlistan"
 - "Jag har köpt mjölk" (letar själv upp rätt lista)
@@ -64,6 +67,11 @@ Datan sparas i en hemlig gist på ditt GitHub-konto. Ingen server behövs.
 Den synkar när appen öppnas, när du byter tillbaka till den, varje minut och 1,5 sekunder efter varje ändring. Den nyaste versionen vinner.
 
 **Viktigt:** lägg aldrig token i koden eller i repot. Den sparas bara i webbläsaren på varje enhet.
+
+## iPhone: prata via Azure
+Safari på iPhone stänger ofta av webbläsarens egen taligenkänning, särskilt när appen startas från hemskärmen. Därför spelar Snygging in ljudet själv på iPhone och låter Azure tolka det. Samma Azure-nyckel används till rösten (se nedan).
+
+Under **⚙︎ → Mikrofon → Taligenkänning** gör **Automatisk** så här: Azure används på iPhone och webbläsarens taligenkänning på allt annat. Tryck på **Testa mikrofonen** för att se att både mikrofonen och nyckeln fungerar.
 
 ## Mänsklig röst (Azure neural)
 Telefonens inbyggda röst låter robotaktig. Azures neurala svenska röster (Sofie, Hillevi, Mattias) låter nästan som en människa, och gratisnivån räcker gott för privat bruk.
