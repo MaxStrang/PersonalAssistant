@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Snygging</title>
+  <meta name="theme-color" content="#0d0b1a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Snygging">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="icon" href="icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Snygging</h1>
+    <button id="settingsBtn" class="icon-btn" aria-label="Inställningar">⚙︎</button>
+  </header>
+
+  <nav class="tabs">
+    <button data-tab="cal" class="active">Kalender</button>
+    <button data-tab="lists">Checklistor</button>
+  </nav>
+
+  <main>
+    <section id="tab-cal" class="tab active">
+      <div id="calList"></div>
+      <button id="icsBtn" class="ghost">Exportera till telefonens kalender (.ics)</button>
+    </section>
+
+    <section id="tab-lists" class="tab">
+      <div id="lists"></div>
+      <form id="newListForm" class="row">
+        <input name="name" placeholder="Ny checklista…" autocomplete="off">
+        <button>Skapa</button>
+      </form>
+    </section>
+
+    <section id="tab-settings" class="tab">
+      <h2>Inställningar</h2>
+      <label class="field">Röst
+        <select id="voiceSelect"></select>
+      </label>
+      <button id="testVoice" class="ghost">Testa rösten</button>
+      <h3>Säkerhetskopia</h3>
+      <p class="hint">Allt sparas i den här webbläsaren. Exportera för att flytta till en annan enhet.</p>
+      <div class="row">
+        <button id="exportBtn" class="ghost">Exportera</button>
+        <label class="ghost btn-like">Importera<input id="importFile" type="file" accept="application/json" hidden></label>
+      </div>
+      <h3>Exempel att säga</h3>
+      <ul class="hint">
+        <li>"Hallå snygging, lägg till bandyträning kl 21–22 imorgon, med samling klockan 20"</li>
+        <li>"Vad har jag idag?" / "Vad har jag i veckan?"</li>
+        <li>"Ta bort tandläkaren"</li>
+        <li>"Visa packlistan bandy"</li>
+        <li>"Bocka av skridskor och hjälm"</li>
+        <li>"Vad är kvar?" / "Nollställ packlistan"</li>
+        <li>"Lägg till vattenflaska på packlistan"</li>
+        <li>"Skapa en ny lista som heter Städning"</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="dock">
+    <div id="chat" aria-live="polite"></div>
+    <div id="status">Tryck och prata</div>
+    <button id="orb" aria-label="Prata med Snygging">
+      <span class="ring r1"></span><span class="ring r2"></span>
+      <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+        <path fill="currentColor" d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/>
+      </svg>
+    </button>
+    <form id="textForm" class="row">
+      <input id="textInput" placeholder="…eller skriv här" autocomplete="off">
+      <button aria-label="Skicka">➤</button>
+    </form>
+  </footer>
+
+  <script src="brain.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,56 @@
+# Snygging – personlig röstassistent
+
+En webbapp (PWA) med kalender, checklistor och röststyrning på svenska.
+Inga servrar, inga API-nycklar. Allt körs i webbläsaren och sparas på telefonen.
+
+## Filer
+| Fil | Vad den gör |
+|---|---|
+| `index.html` | Sidan |
+| `style.css` | Utseendet |
+| `app.js` | UI, röst (tal in/ut), lagring, export. **Dina förinställda checklistor ligger högst upp här.** |
+| `brain.js` | Tolkar vad du säger ("lägg till…", "bocka av…") |
+| `sw.js`, `manifest.json`, `icon-*.png` | Gör att den kan installeras på hemskärmen och funkar offline |
+| `test.js` | Testa tolkningen: `node test.js` |
+
+## Lägg upp på GitHub Pages
+1. Skapa ett nytt repo på GitHub, t.ex. `snygging`. Det kan vara publikt eller privat, men Pages på ett privat repo kräver GitHub Pro.
+2. Ladda upp alla filer till roten av repot (*Add file → Upload files*), eller:
+   ```bash
+   git init && git add . && git commit -m "Snygging v1"
+   git branch -M main
+   git remote add origin https://github.com/<ditt-namn>/snygging.git
+   git push -u origin main
+   ```
+3. Gå till **Settings → Pages**. Välj **Deploy from a branch**, branch `main` och mapp `/ (root)`, och tryck Save.
+4. Efter cirka en minut ligger appen på `https://<ditt-namn>.github.io/snygging/`.
+
+## Installera på telefonen
+- **Android (Chrome):** öppna länken, välj ⋮ och sedan *Lägg till på startskärmen*.
+- **iPhone (Safari):** öppna länken och välj Dela → *Lägg till på hemskärmen*.
+- Första gången du trycker på pratknappen frågar telefonen om mikrofonen. Tryck *Tillåt*.
+
+## Så pratar du med den
+Tryck på den stora knappen och prata. Efter svaret lyssnar den igen ("Är det något mer?"). Säg "nej" eller "det var allt" för att avsluta.
+
+- "Hallå snygging, lägg till bandyträning kl 21–22 imorgon, med samling klockan 20"
+- "Boka middag med mamma på fredag mellan 18 och 20"
+- "Lägg in möte den 3 december kl 10–11"
+- "Vad har jag idag?" / "Vad har jag i veckan?"
+- "Ta bort tandläkaren"
+- "Visa packlistan bandy" → "Bocka av skridskor och hjälm" → "Vad är kvar?"
+- "Lägg till vattenflaska på packlistan"
+- "Jag har köpt mjölk" (letar själv upp rätt lista)
+- "Nollställ packlistan" / "Skapa en ny lista som heter Städning"
+
+"Hallå snygging" i början är valfritt, och den fungerar likadant utan.
+
+## Ändra dina förinställda checklistor
+Öppna `app.js` och ändra `DEFAULT_LISTS` högst upp. Nya listor dyker upp automatiskt nästa gång appen laddas.
+
+## Bra att veta
+- **Data sparas per enhet** (localStorage). Använd *Exportera/Importera* under ⚙︎ för att flytta mellan enheter.
+- **Exportera till telefonens kalender (.ics)** lägger in dina händelser i den vanliga kalendern.
+- Röstigenkänning fungerar bäst i **Chrome på Android** och **Safari på iPhone**. Firefox saknar stöd, så skriv i textfältet där.
+- Den lyssnar inte hela tiden efter "Hallå snygging", utan du trycker på knappen. Webbläsare tillåter inte en mikrofon som alltid är på.
+- Rösten kommer från telefonen. På iPhone heter den svenska rösten "Alva", och du kan ladda ner en bättre version under Inställningar → Hjälpmedel → Uppläst innehåll → Röster → Svenska.
