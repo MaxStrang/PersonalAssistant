@@ -48,8 +48,22 @@ Tryck på den stora knappen och prata. Efter svaret lyssnar den igen ("Är det n
 ## Ändra dina förinställda checklistor
 Öppna `app.js` och ändra `DEFAULT_LISTS` högst upp. Nya listor dyker upp automatiskt nästa gång appen laddas.
 
+## Synka mellan telefon och dator
+Datan sparas i en hemlig gist på ditt GitHub-konto. Ingen server behövs.
+
+1. Gå till GitHub → din profilbild → **Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token (classic)**.
+2. Ge den ett namn, t.ex. "Snygging". Välj utgångsdatum (*No expiration* om du inte vill byta) och kryssa **bara i `gist`**. Tryck Generate och kopiera token (`ghp_…`).
+3. Öppna Snygging, gå till **⚙︎ → Synk mellan enheter**, klistra in token och tryck **Spara**.
+4. Gör samma sak på den andra enheten med **samma token**.
+
+Den synkar när appen öppnas, när du byter tillbaka till den, varje minut och 1,5 sekunder efter varje ändring. Den nyaste versionen vinner.
+
+**Viktigt:** lägg aldrig token i koden eller i repot. Den sparas bara i webbläsaren på varje enhet.
+
 ## Bra att veta
-- **Data sparas per enhet** (localStorage). Använd *Exportera/Importera* under ⚙︎ för att flytta mellan enheter.
+- Utan synk sparas data per enhet (localStorage). Du kan också använda *Exportera/Importera* under ⚙︎.
+- Gör du ändringar på två enheter samtidigt medan båda är offline vinner den som synkar sist.
+- En "hemlig" gist syns inte publikt, men den som har exakt länken kan läsa den. Lägg alltså inte in känsliga saker.
 - **Exportera till telefonens kalender (.ics)** lägger in dina händelser i den vanliga kalendern.
 - Röstigenkänning fungerar bäst i **Chrome på Android** och **Safari på iPhone**. Firefox saknar stöd, så skriv i textfältet där.
 - Den lyssnar inte hela tiden efter "Hallå snygging", utan du trycker på knappen. Webbläsare tillåter inte en mikrofon som alltid är på.

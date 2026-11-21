@@ -32,8 +32,10 @@
     return s;
   }
   let state = load();
-  const save = () => localStorage.setItem(KEY, JSON.stringify(state));
-  save();
+  const persist = () => localStorage.setItem(KEY, JSON.stringify(state));
+  // save() = en ändring gjord av dig → stämpla tid och synka
+  const save = () => { state.updatedAt = Date.now(); persist(); Sync.schedule(); };
+  persist();
 
   // ---------- Flikar ----------
   let tab = 'cal';
@@ -268,9 +270,104 @@
     catch (err) { alert('Kunde inte läsa filen.'); }
   };
 
+  // ---------- Synk via GitHub Gist ----------
+  // Datan ligger i en hemlig gist på ditt konto. Den nyaste versionen vinner.
+  const TOKEN_KEY = 'snygging-token', GIST_KEY = 'snygging-gist', FILE = 'snygging-data.json';
+  const Sync = (() => {
+    let timer = null, busy = false;
+    const token = () => localStorage.getItem(TOKEN_KEY);
+    const clock = () => new Date().toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+    const status = t => { $('#syncStatus').textContent = t; };
+
+    async function gh(path, opts = {}) {
+      const headers = { Authorization: 'Bearer ' + token(), Accept: 'application/vnd.github+json' };
+      if (opts.body) headers['Content-Type'] = 'application/json';
+      const r = await fetch('https://api.github.com' + path, { ...opts, headers });
+      if (r.status === 404 && path.startsWith('/gists/')) localStorage.removeItem(GIST_KEY);
+      if (r.status === 401) throw new Error('fel token');
+      if (!r.ok) throw new Error('GitHub svarade ' + r.status);
+      return r.json();
+    }
+
+    async function findGist() {
+      const cached = localStorage.getItem(GIST_KEY);
+      if (cached) return cached;
+      const list = await gh('/gists?per_page=100');
+      const g = list.find(x => x.files && x.files[FILE]);
+      if (g) localStorage.setItem(GIST_KEY, g.id);
+      return g ? g.id : null;
+    }
+
+    async function push(force) {
+      if (!token()) return;
+      if (busy && !force) { schedule(); return; }
+      const wasBusy = busy; busy = true;
+      try {
+        status('Sparar…');
+        const files = { [FILE]: { content: JSON.stringify(state) } };
+        const id = await findGist();
+        if (id) await gh('/gists/' + id, { method: 'PATCH', body: JSON.stringify({ files }) });
+        else {
+          const g = await gh('/gists', { method: 'POST', body: JSON.stringify({ description: 'Snygging data', public: false, files }) });
+          localStorage.setItem(GIST_KEY, g.id);
+        }
+        status('Synkad ' + clock());
+      } catch (e) { status('Synk misslyckades: ' + e.message); }
+      finally { if (!wasBusy) busy = false; }
+    }
+
+    async function pull() {
+      if (!token() || busy) return;
+      busy = true;
+      try {
+        status('Synkar…');
+        const id = await findGist();
+        if (!id) { await push(true); return; }          // första enheten: skapa gisten
+        const f = (await gh('/gists/' + id)).files[FILE];
+        const text = f.truncated ? await (await fetch(f.raw_url)).text() : f.content;
+        const remote = JSON.parse(text);
+        const r = remote.updatedAt || 0, l = state.updatedAt || 0;
+        if (r > l) { state = remote; persist(); render(); }   // molnet är nyare
+        else if (l > r) { await push(true); return; }          // den här enheten är nyare
+        status('Synkad ' + clock());
+      } catch (e) { status('Synk misslyckades: ' + e.message); }
+      finally { busy = false; }
+    }
+
+    function schedule() {
+      if (!token()) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => push(), 1500);
+    }
+
+    function init() {
+      $('#tokenInput').value = token() ? '••••••••' : '';
+      status(token() ? 'Kopplad' : 'Inte kopplad');
+      $('#tokenSave').onclick = () => {
+        const v = $('#tokenInput').value.trim();
+        if (!v || v.startsWith('•')) return;
+        localStorage.setItem(TOKEN_KEY, v);
+        localStorage.removeItem(GIST_KEY);
+        $('#tokenInput').value = '••••••••';
+        pull();
+      };
+      $('#syncNow').onclick = () => pull();
+      $('#tokenClear').onclick = () => {
+        localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(GIST_KEY);
+        $('#tokenInput').value = ''; status('Inte kopplad');
+      };
+      // Hämta när appen öppnas, när du byter tillbaka till den, och varje minut
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) pull(); });
+      setInterval(() => { if (!document.hidden) pull(); }, 60000);
+      pull();
+    }
+    return { schedule, pull, init };
+  })();
+
   // ---------- Start ----------
   // Låt innehållet aldrig hamna bakom dockan
   new ResizeObserver(() => { document.body.style.paddingBottom = ($('.dock').offsetHeight + 16) + 'px'; }).observe($('.dock'));
   render();
+  Sync.init();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();

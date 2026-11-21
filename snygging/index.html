@@ -45,6 +45,18 @@
         <select id="voiceSelect"></select>
       </label>
       <button id="testVoice" class="ghost">Testa rösten</button>
+      <h3>Synk mellan enheter</h3>
+      <p class="hint">Klistra in en GitHub-token med bara behörigheten <b>gist</b>. Använd samma token på telefon och dator, så synkas allt automatiskt.</p>
+      <div class="row">
+        <input id="tokenInput" type="password" placeholder="ghp_…" autocomplete="off">
+        <button id="tokenSave">Spara</button>
+      </div>
+      <div class="row">
+        <button id="syncNow" class="ghost">Synka nu</button>
+        <button id="tokenClear" class="ghost">Koppla från</button>
+      </div>
+      <p id="syncStatus" class="hint">Inte kopplad</p>
+
       <h3>Säkerhetskopia</h3>
       <p class="hint">Allt sparas i den här webbläsaren. Exportera för att flytta till en annan enhet.</p>
       <div class="row">
