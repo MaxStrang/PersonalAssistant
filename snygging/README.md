@@ -68,12 +68,16 @@ Den synkar när appen öppnas, när du byter tillbaka till den, varje minut och 
 
 **Viktigt:** lägg aldrig token i koden eller i repot. Den sparas bara i webbläsaren på varje enhet.
 
-## iPhone: prata via Azure
-Safari på iPhone stänger ofta av webbläsarens egen taligenkänning, särskilt när appen startas från hemskärmen. Därför spelar Snygging in ljudet själv på iPhone och låter Azure tolka det. Samma Azure-nyckel används till rösten (se nedan).
+## iPhone
+Safari på iPhone stänger ofta av webbläsarens taligenkänning. Då byter Snygging automatiskt till **tangentbordets diktering**:
+1. Tryck på **Prata med Snygging**. Skrivfältet och tangentbordet öppnas.
+2. Tryck på **mikrofonen nere till höger på tangentbordet** och prata.
+3. När du tystnar skickar Snygging själv och svarar med röst.
 
-Under **⚙︎ → Mikrofon → Taligenkänning** gör **Automatisk** så här: Azure används på iPhone och webbläsarens taligenkänning på allt annat. Tryck på **Testa mikrofonen** för att se att både mikrofonen och nyckeln fungerar.
+Krav: diktering ska vara på under *Inställningar → Allmänt → Tangentbord → Aktivera diktering*.
+Du kan även välja läget direkt under **⚙︎ → Mikrofon → Taligenkänning → Tangentbordets diktering**.
 
-## Mänsklig röst (Azure neural)
+## Valfritt: mänskligare röst med Azure
 Telefonens inbyggda röst låter robotaktig. Azures neurala svenska röster (Sofie, Hillevi, Mattias) låter nästan som en människa, och gratisnivån räcker gott för privat bruk.
 
 1. Gå till portal.azure.com → **Create a resource** → sök **Speech** → **Speech service** → Create.

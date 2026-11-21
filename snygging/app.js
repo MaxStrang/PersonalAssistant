@@ -342,7 +342,7 @@
           : /android/i.test(navigator.userAgent) ? 'Mikrofonen är nekad. Tillåt den för sidan och för Chrome i Androids inställningar (Appar → Chrome → Behörigheter).'
             : 'Mikrofonen är nekad. Klicka på ikonen till vänster om adressen, tillåt mikrofonen och ladda om sidan.';
       case 'service-not-allowed':
-        return isIOS ? 'iPhone stänger av webbläsarens taligenkänning här. Lägg in en Azure-nyckel under inställningar, så används den i stället.'
+        return isIOS ? 'iPhone stänger av webbläsarens taligenkänning här. Välj Tangentbordets diktering under inställningar.'
           : 'Webbläsaren tillåter inte taligenkänning här. Använd Chrome eller Edge.';
       case 'network': return 'Webbläsaren når inte sin taltjänst. Använd Chrome eller Edge.';
       case 'audio-capture': return 'Ingen mikrofon hittades. Kontrollera att en mikrofon är inkopplad och vald.';
@@ -355,17 +355,42 @@
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   let convo = false, stopListening = null, srBroken = false;
 
+  const DICT_KEY = 'snygging-use-dictation';
   function useAzureStt() {
     const mode = cfg().stt || 'auto';
-    if (mode === 'azure') return true;
-    if (mode === 'browser') return false;
+    if (mode === 'azure') return azureReady();
+    if (mode !== 'auto') return false;
     return azureReady() && (isIOS || !SR || srBroken);
   }
+  // Tangentbordets diktering: Apples egen, funkar alltid på iPhone
+  function useDictation() {
+    const mode = cfg().stt || 'auto';
+    if (mode === 'dictation') return true;
+    if (mode !== 'auto' || useAzureStt()) return false;
+    return isIOS && (!SR || localStorage.getItem(DICT_KEY) === '1');
+  }
+
+  let dictating = false, dictTimer = null;
+  function startDictation() {
+    const f = $('#textForm'), inp = $('#textInput');
+    f.hidden = false; dictating = true;
+    inp.value = '';
+    inp.placeholder = 'Tryck på mikrofonen på tangentbordet';
+    inp.focus();                               // måste ske direkt i trycket, annars öppnas inte tangentbordet
+    setTalk('idle', 'Tryck på mikrofonen nere till höger på tangentbordet och prata. Jag skickar när du tystnar.');
+  }
+  $('#textInput').addEventListener('input', () => {
+    if (!dictating) return;
+    clearTimeout(dictTimer);
+    if (!$('#textInput').value.trim()) return;
+    dictTimer = setTimeout(() => $('#textForm').requestSubmit(), 1800);   // 1,8 s utan nya ord = klar
+  });
+  $('#textInput').addEventListener('blur', () => { setTimeout(() => { if (!$('#textInput').value.trim()) dictating = false; }, 300); });
 
   function listen() {
     if (useAzureStt()) return listenAzure();
     if (!SR) {
-      setTalk('idle', isIOS ? 'Lägg in en Azure-nyckel under inställningar för att prata på iPhone.' : 'Den här webbläsaren saknar taligenkänning. Använd Chrome eller Edge, eller skriv i stället.');
+      setTalk('idle', 'Den här webbläsaren saknar taligenkänning. Använd Chrome eller Edge, eller skriv i stället.');
       return;
     }
     listenBrowser();
@@ -383,6 +408,10 @@
       if (heard.trim()) return process(heard.trim());
       convo = false;
       if (lastErr === 'service-not-allowed' || lastErr === 'network') srBroken = true;
+      if (isIOS && (lastErr === 'service-not-allowed' || lastErr === 'not-allowed') && !azureReady()) {
+        localStorage.setItem(DICT_KEY, '1');
+        return setTalk('idle', 'Safari tillåter inte röststyrning här. Jag använder tangentbordets diktering i stället – tryck på knappen igen.');
+      }
       const fallback = srBroken && azureReady() ? ' Jag byter till Azure – tryck igen.' : '';
       setTalk('idle', lastErr && lastErr !== 'no-speech' && lastErr !== 'aborted' ? micHelp(lastErr) + fallback : 'Jag hörde inget. Tryck och försök igen.');
     };
@@ -515,6 +544,7 @@
     unlockAudio();
     if (stopListening) { stopListening(); return; }                     // tryck igen = jag är klar
     if (speaking) { convo = false; closeMic(); stopSpeaking(); return; } // tryck medan den pratar = tyst
+    if (useDictation()) { convo = false; startDictation(); return; }
     convo = true;
     listen();
   };
@@ -526,7 +556,12 @@
     e.preventDefault();
     const v = $('#textInput').value.trim();
     if (!v) return;
+    clearTimeout(dictTimer);
+    const wasDictating = dictating;
+    dictating = false;
     $('#textInput').value = '';
+    $('#textInput').placeholder = 'Skriv till Snygging';
+    if (wasDictating) $('#textInput').blur();   // stäng tangentbordet så svaret syns
     unlockAudio(); convo = false;
     process(v);
   };
@@ -549,6 +584,11 @@
       }));
     };
     ['#engineSelect', '#sttSelect', '#azureKey', '#azureRegion', '#azureVoice'].forEach(s => $(s).onchange = store);
+    const toggleAzure = () => { $('#azureBox').hidden = !($('#engineSelect').value === 'azure' || $('#sttSelect').value === 'azure'); };
+    toggleAzure();
+    $('#engineSelect').addEventListener('change', toggleAzure);
+    $('#sttSelect').addEventListener('change', toggleAzure);
+    $('#sttSelect').addEventListener('change', () => { if ($('#sttSelect').value === 'browser') localStorage.removeItem(DICT_KEY); });
     $('#voiceSelect').onchange = e => { state.voice = e.target.value; save(); };
     $('#testVoice').onclick = () => { unlockAudio(); speak('Hej snygging! Så här låter jag. Vad vill du göra idag?'); };
     $('#testMic').onclick = testMic;
@@ -558,7 +598,7 @@
     const out = $('#micTest'), lines = [];
     lines.push('Webbläsarens taligenkänning: ' + (SR ? 'finns' : 'saknas'));
     lines.push('Azure-nyckel: ' + (azureReady() ? 'inlagd' : 'saknas'));
-    lines.push('Används nu: ' + (useAzureStt() ? 'Azure' : 'webbläsaren'));
+    lines.push('Används nu: ' + (useDictation() ? 'tangentbordets diktering' : useAzureStt() ? 'Azure' : 'webbläsarens taligenkänning'));
     if (isIOS) lines.push('Öppnad från hemskärmen: ' + (standalone ? 'ja' : 'nej'));
     out.textContent = lines.join('\n') + '\nFrågar efter mikrofonen…';
     try {

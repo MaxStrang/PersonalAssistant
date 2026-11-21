@@ -75,9 +75,10 @@
           <h3>Mikrofon</h3>
           <label class="field">Taligenkänning
             <select id="sttSelect">
-              <option value="auto">Automatisk (Azure på iPhone)</option>
-              <option value="browser">Webbläsarens</option>
-              <option value="azure">Azure</option>
+              <option value="auto">Automatisk</option>
+              <option value="browser">Webbläsarens taligenkänning</option>
+              <option value="dictation">Tangentbordets diktering (bäst på iPhone)</option>
+              <option value="azure">Azure (kräver nyckel)</option>
             </select>
           </label>
           <button id="testMic" class="ghost">Testa mikrofonen</button>
@@ -89,7 +90,7 @@
           <label class="field">Röstmotor
             <select id="engineSelect">
               <option value="browser">Enhetens inbyggda röst</option>
-              <option value="azure">Azure neural (mänskligast)</option>
+              <option value="azure">Azure neural (kräver nyckel)</option>
             </select>
           </label>
           <div id="azureBox">
@@ -111,7 +112,7 @@
             <select id="voiceSelect"></select>
           </label>
           <button id="testVoice" class="ghost">Testa rösten</button>
-          <p class="hint">Azure-nyckeln används både för rösten och för taligenkänning på iPhone. Den sparas bara på den här enheten.</p>
+          <p class="hint">Azure är valfritt. Utan nyckel används enhetens egen röst. På iPhone låter den bäst om du laddar ner Alva (Förbättrad) under Inställningar → Hjälpmedel → Uppläst innehåll → Röster → Svenska.</p>
         </div>
 
         <div class="group">
