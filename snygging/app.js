@@ -321,9 +321,9 @@
   }
 
   // ---------- Pratknappen ----------
-  const LABELS = { idle: 'Prata med Snygging', listening: 'Lyssnar – tryck när du är klar', thinking: 'Tänker…', speaking: 'Pratar – tryck för att tysta' };
+  const LABELS = { reply: 'Tryck för att svara', idle: 'Prata med Snygging', listening: 'Lyssnar – tryck när du är klar', thinking: 'Tänker…', speaking: 'Pratar – tryck för att tysta' };
   function setTalk(mode, status) {
-    $('#talk').className = 'talk' + (mode === 'idle' ? '' : ' ' + mode);
+    $('#talk').className = 'talk' + (mode === 'idle' || mode === 'reply' ? '' : ' ' + mode);
     $('#talkLabel').textContent = LABELS[mode];
     $('#status').textContent = status || '';
     if (mode !== 'listening') setBars(null);
@@ -353,7 +353,8 @@
 
   // ---------- Lyssna: två motorer ----------
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let convo = false, stopListening = null, srBroken = false;
+  let convo = false, stopListening = null, abortListening = null, srBroken = false;
+  let sessionAuto = false, sessionHeard = false;
 
   const DICT_KEY = 'snygging-use-dictation';
   function useAzureStt() {
@@ -387,7 +388,8 @@
   });
   $('#textInput').addEventListener('blur', () => { setTimeout(() => { if (!$('#textInput').value.trim()) dictating = false; }, 300); });
 
-  function listen() {
+  function listen(auto = false) {
+    sessionAuto = auto; sessionHeard = false;
     if (useAzureStt()) return listenAzure();
     if (!SR) {
       setTalk('idle', 'Den här webbläsaren saknar taligenkänning. Använd Chrome eller Edge, eller skriv i stället.');
@@ -400,9 +402,14 @@
   function listenBrowser() {
     let heard = '', handled = false, silence = null, lastErr = null;
     let rec = new SR();
+    abortListening = () => {
+      handled = true; clearTimeout(silence); stopListening = null; abortListening = null;
+      try { rec && rec.abort(); } catch (e) { /* */ }
+      rec = null;
+    };
     const finish = () => {
       if (handled) return;
-      handled = true; clearTimeout(silence); stopListening = null;
+      handled = true; clearTimeout(silence); stopListening = null; abortListening = null;
       try { rec && rec.abort(); } catch (e) { /* redan stoppad */ }
       rec = null;
       if (heard.trim()) return process(heard.trim());
@@ -418,6 +425,7 @@
     rec.lang = 'sv-SE'; rec.interimResults = true; rec.continuous = true; rec.maxAlternatives = 1;
     rec.onresult = e => {
       heard = Array.from(e.results).map(r => r[0].transcript).join(' ').replace(/\s+/g, ' ');
+      sessionHeard = true;
       $('#status').textContent = '”' + heard + '”';
       clearTimeout(silence);
       silence = setTimeout(finish, 1600);   // 1,6 s tystnad = du är klar
@@ -535,13 +543,19 @@
     }
     addMsg('bot', res.reply);
     speak(res.reply, () => {
-      if (res.expectMore && convo) listen();   // fortsätt samtalet: "är det något mer?"
-      else { convo = false; closeMic(); }
+      if (res.expectMore && convo) {
+        // iPhone låter bara mikrofonen starta direkt efter ett tryck → vänta på användaren
+        if (isIOS && !useAzureStt()) setTalk('reply');
+        else listen(true);                     // fortsätt samtalet: "är det något mer?"
+      } else { convo = false; closeMic(); }
     });
   }
 
   $('#talk').onclick = () => {
     unlockAudio();
+    if (stopListening && sessionAuto && !sessionHeard && abortListening) {
+      abortListening(); convo = true; listen(); return;                  // automatisk lyssning fastnade → starta om nu
+    }
     if (stopListening) { stopListening(); return; }                     // tryck igen = jag är klar
     if (speaking) { convo = false; closeMic(); stopSpeaking(); return; } // tryck medan den pratar = tyst
     if (useDictation()) { convo = false; startDictation(); return; }
