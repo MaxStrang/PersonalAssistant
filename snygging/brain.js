@@ -163,6 +163,16 @@
     let m;
     const ui = list => ({ tab: 'lists', open: list && list.id });
 
+    // Byt namn på punkt: "ändra mjölk till havremjölk på handlalistan"
+    m = t.match(rx('^(?:ändra|byt ut|byt)\\s+(.+?)\\s+(?:till|mot)\\s+(.+?)(?:\\s(?:på|i)\\s(\\S*list.*))?$'));
+    if (m) {
+      const list = findList(state, m[3] || '');
+      const hit = list && best(list.items, m[1], i => i.text);
+      if (!hit) return { reply: 'Jag hittade inte den punkten. Vilken lista menar du?', expectMore: true };
+      const old = hit.text; hit.text = cap(m[2].trim()); state.activeList = list.id;
+      return { reply: `Klart, ${old} heter nu ${hit.text} på ${list.name}. Något mer?`, expectMore: true, ui: ui(list) };
+    }
+
     // Skapa ny lista
     m = t.match(rx('\\b(?:skapa|gör|lägg till|starta)\\s+(?:en\\s+)?(?:ny\\s+)?(?:check)?lista(?:\\s+(?:som heter|med namnet|kallad|för))?\\s+(.+)$'));
     if (m) {
@@ -265,6 +275,62 @@
     return { reply: `${head} ${joinList(parts)}. Något mer?`, expectMore: true, ui: { tab: 'cal' } };
   }
 
+  // Ändra en aktivitet: namn, dag, tid eller samling
+  function handleEdit(t, state, now) {
+    const today = iso(now);
+    let mode = 'auto', m;
+    if ((m = t.match(rx('^(?:byt namn på|döp om|ändra (?:titeln|namnet|rubriken) (?:på|för|till))\\s+(.+?)\\s+till\\s+(.+)$')))) mode = 'rename';
+    else if ((m = t.match(rx('^(?:ändra|byt|flytta|sätt) (?:samlingen|samlingstiden) (?:på|för|till)\\s+(.+?)\\s+till\\s+(.+)$')))) mode = 'gather';
+    else if ((m = t.match(rx('^(?:ändra|byt|flytta) (?:tiden|tid|dagen|datumet) (?:på|för)\\s+(.+?)\\s+till\\s+(.+)$')))) mode = 'time';
+    else if ((m = t.match(rx('^(?:flytta|ändra|byt|uppdatera|sätt om)\\s+(.+?)\\s+till\\s+(.+)$')))) mode = /^flytta/.test(t) ? 'time' : 'auto';
+    if (!m) return { reply: 'Vad vill du ändra? Säg till exempel: byt namn på bandyträning till match, eller: flytta bandyträning till imorgon klockan 19.', expectMore: true };
+
+    // Hitta aktiviteten
+    const who = takeDate(m[1], now);
+    const q = who.text.replace(rx('\\b(?:i|från) (?:min )?kalender(?:n)?\\b'), ' ');
+    const pool = state.events.filter(e => (who.date ? e.date === who.date : e.date >= today)).sort(sortEv);
+    const ev = best(pool, q, e => e.title);
+    if (!ev) return { reply: `Jag hittade ingen aktivitet som heter ${q.trim()}.`, expectMore: true, ui: { tab: 'cal' } };
+
+    const target = m[2].trim();
+    const old = eventPhrase(ev, now);
+
+    if (mode === 'gather') {
+      const tm = takeTimes('kl ' + target.replace(rx('^(?:kl|klockan)\\s*'), ''), false);
+      if (!tm.start) return { reply: 'Vilken tid ska samlingen vara?', expectMore: true };
+      ev.gather = tm.start;
+      return { reply: `Klart snygging! Samlingen för ${ev.title} är nu klockan ${sayTime(ev.gather)}. Något mer?`, expectMore: true, ui: { tab: 'cal', flash: ev.id } };
+    }
+
+    if (mode !== 'rename') {
+      const evening = rx('\\b(?:kväll|kvällen|eftermiddag)\\b').test(target);
+      const d = takeDate(target, now);
+      // "till 19" utan "kl" ska också räknas som tid
+      const tt = rx('^\\d{1,2}(?:[:.]\\d{2})?\\b').test(d.text.trim()) ? 'kl ' + d.text.trim() : d.text;
+      const tm = takeTimes(tt, evening);
+      if (d.date || tm.start || tm.gather) {
+        if (d.date) ev.date = d.date;
+        if (tm.start) {
+          const mins = s => +s.slice(0, 2) * 60 + +s.slice(3);
+          const hhmm = x => { x = (x + 1440) % 1440; return `${pad(Math.floor(x / 60))}:${pad(x % 60)}`; };
+          const shift = ev.start ? mins(tm.start) - mins(ev.start) : 0;
+          if (tm.end) ev.end = tm.end;
+          else if (ev.start && ev.end) ev.end = hhmm(mins(ev.end) + shift);    // behåll samma längd
+          if (ev.gather && ev.start && !tm.gather) ev.gather = hhmm(mins(ev.gather) + shift); // samlingen följer med
+          ev.start = tm.start;
+        }
+        if (tm.gather) ev.gather = tm.gather;
+        return { reply: `Fixat snygging! Jag har flyttat det, nu är det ${eventPhrase(ev, now)}. Något mer?`, expectMore: true, ui: { tab: 'cal', flash: ev.id } };
+      }
+      if (mode === 'time') return { reply: `Vart ska jag flytta ${ev.title}? Säg en dag eller en tid.`, expectMore: true };
+    }
+
+    // Byt namn
+    const oldTitle = ev.title;
+    ev.title = cap(target.replace(rx('^(?:det |den )'), ''));
+    return { reply: `Klart snygging! ${oldTitle} heter nu ${ev.title}. Något mer?`, expectMore: true, ui: { tab: 'cal', flash: ev.id } };
+  }
+
   function handleDelete(t, state, now) {
     const m = t.match(rx('^(?:ta bort|radera|stryk|avboka|ställ in)\\s+(.+)$'));
     const d = takeDate(m[1], now);
@@ -313,6 +379,8 @@
 
     if (rx('^(?:vad|vilka|har jag|hur ser|när)\\b').test(t) && /har jag|händer|planerat|gång|kalender|schema|ut|bokat|inbokat/.test(t))
       return handleQuery(t, state, now);
+
+    if (rx('^(?:ändra|byt|döp om|flytta|uppdatera|sätt om)\\b').test(t)) return handleEdit(t, state, now);
 
     if (rx('^(?:ta bort|radera|stryk|avboka|ställ in)\\b').test(t)) return handleDelete(t, state, now);
 

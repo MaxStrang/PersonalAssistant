@@ -38,6 +38,11 @@ Tryck på den stora knappen och prata. När du tystnar i cirka 1,5 sekund svarar
 - "Lägg in möte den 3 december kl 10–11"
 - "Vad har jag idag?" / "Vad har jag i veckan?"
 - "Ta bort tandläkaren"
+- "Byt namn på bandyträningen till bandymatch" / "Ändra tandläkaren till läkarbesök"
+- "Flytta bandymatchen till imorgon kl 19" (slutet och samlingen flyttas med)
+- "Ändra tiden för bandymatchen till 17–18:30" / "Ändra samlingen för bandymatchen till 18:15"
+- "Ändra mjölk till havremjölk på handlalistan"
+- Du kan också trycka på en aktivitet i kalendern för att redigera den.
 - "Visa packlistan bandy" → "Bocka av skridskor och hjälm" → "Vad är kvar?"
 - "Lägg till vattenflaska på packlistan"
 - "Jag har köpt mjölk" (letar själv upp rätt lista)

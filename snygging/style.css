@@ -84,3 +84,9 @@ button, .btn-like { padding: 10px 14px; border-radius: 12px; border: 0; backgrou
 @keyframes breathe { 50% { transform: scale(1.07); } }
 @keyframes ripple { 0% { transform: scale(1); opacity: .8; } 100% { transform: scale(1.8); opacity: 0; } }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+.ev[data-open-ev] { cursor: pointer; }
+.ev.edit { flex-direction: column; align-items: stretch; gap: 8px; box-shadow: 0 0 0 1px var(--a2); }
+.ev.edit .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ev.edit label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.ev.edit .row { margin: 0; }

@@ -25,3 +25,15 @@ say('skapa en ny lista som heter Städning');
 say('hallå snygging');
 say('nej det var allt');
 console.log(JSON.stringify(state.events, null, 1));
+
+console.log('--- Redigering ---');
+say('lägg till bandyträning imorgon kl 21-22 med samling klockan 20');
+say('lägg till tandläkare på fredag kl 9');
+say('byt namn på bandyträningen till bandymatch');
+say('ändra tandläkaren till läkarbesök');
+say('flytta bandymatchen till kl 19');
+say('flytta läkarbesöket till måndag klockan 10:30');
+say('ändra samlingen för bandymatch till 18:15');
+say('ändra tiden för bandymatch till 17-18:30');
+say('ändra mjölk till havremjölk på handlalistan');
+say('flytta frisören till imorgon');

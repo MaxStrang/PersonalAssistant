@@ -49,6 +49,7 @@
   $('#settingsBtn').onclick = () => showTab(tab === 'settings' ? 'cal' : 'settings');
 
   // ---------- Rendering ----------
+  let editingId = null;
   function renderCal(flashId) {
     const now = new Date(), today = B.iso(now);
     const evs = state.events.filter(e => e.date >= today).sort(B.sortEv);
@@ -59,8 +60,21 @@
     let html = '', last = '';
     for (const e of evs) {
       if (e.date !== last) { html += `<h3>${esc(B.cap(B.sayDate(e.date, now)))}</h3>`; last = e.date; }
+      if (e.id === editingId) {
+        html += `<form class="ev edit" data-edit-ev="${e.id}">
+          <input name="title" value="${esc(e.title)}" placeholder="Titel">
+          <div class="grid">
+            <label>Dag<input type="date" name="date" value="${e.date}"></label>
+            <label>Samling<input type="time" name="gather" value="${e.gather || ''}"></label>
+            <label>Start<input type="time" name="start" value="${e.start || ''}"></label>
+            <label>Slut<input type="time" name="end" value="${e.end || ''}"></label>
+          </div>
+          <div class="row"><button>Spara</button><button type="button" class="ghost" data-cancel-edit>Avbryt</button></div>
+        </form>`;
+        continue;
+      }
       const time = e.start ? e.start + (e.end ? '–' + e.end : '') : 'Heldag';
-      html += `<div class="ev${e.id === flashId ? ' flash' : ''}">
+      html += `<div class="ev${e.id === flashId ? ' flash' : ''}" data-open-ev="${e.id}">
         <div class="time">${time}</div>
         <div class="t">${esc(e.title)}${e.gather ? `<small>Samling ${e.gather}</small>` : ''}</div>
         <button class="del" data-del-ev="${e.id}" aria-label="Ta bort">✕</button></div>`;
@@ -92,7 +106,10 @@
   // Klick i kalender/listor (event delegation)
   document.addEventListener('click', e => {
     const t = e.target;
-    if (t.dataset.delEv) { state.events = state.events.filter(x => x.id !== t.dataset.delEv); save(); render(); }
+    if (t.dataset.delEv) { if (confirm('Ta bort aktiviteten?')) { state.events = state.events.filter(x => x.id !== t.dataset.delEv); save(); render(); } return; }
+    if (t.closest && t.closest('[data-cancel-edit]')) { editingId = null; render(); return; }
+    const openEv = t.closest && t.closest('[data-open-ev]');
+    if (openEv) { editingId = openEv.dataset.openEv; render(); return; }
     if (t.dataset.delItem) { e.preventDefault(); const [l, i] = t.dataset.delItem.split(':'); state.checklists.find(c => c.id === l).items.splice(+i, 1); save(); render(); }
     if (t.dataset.reset) { state.checklists.find(c => c.id === t.dataset.reset).items.forEach(i => i.done = false); save(); render(); }
     if (t.dataset.delList && confirm('Ta bort listan?')) { state.checklists = state.checklists.filter(c => c.id !== t.dataset.delList); save(); render(); }
@@ -107,6 +124,17 @@
   }, true);
   document.addEventListener('submit', e => {
     const f = e.target;
+    if (f.dataset.editEv) {
+      e.preventDefault();
+      const ev = state.events.find(x => x.id === f.dataset.editEv);
+      const v = n => f.elements[n].value.trim();
+      if (ev && v('title') && v('date')) {
+        Object.assign(ev, { title: v('title'), date: v('date'), start: v('start') || null, end: v('end') || null, gather: v('gather') || null });
+        save();
+      }
+      editingId = null; render(ev && ev.id);
+      return;
+    }
     if (f.dataset.addItem) {
       e.preventDefault();
       const v = f.querySelector('input').value.trim();
