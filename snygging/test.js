@@ -37,3 +37,11 @@ say('ändra samlingen för bandymatch till 18:15');
 say('ändra tiden för bandymatch till 17-18:30');
 say('ändra mjölk till havremjölk på handlalistan');
 say('flytta frisören till imorgon');
+
+console.log('--- Artighetsfraser och ordföljd ---');
+say('lägg till bandyträning på måndag kl 21:00');
+say('kan du ta bort bandyträningen på måndag');
+say('skulle du kunna lägga till tandläkare på onsdag kl 9');
+say('jag vill flytta tandläkaren till kl 10');
+say('tandläkaren på onsdag kan du ta bort');
+say('kan du ta bort ägg från handlalistan');

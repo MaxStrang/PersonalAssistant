@@ -118,8 +118,12 @@
     return cap(w.join(' '));
   }
 
+  function sayDateSpoken(dIso, now) {
+    const s = sayDate(dIso, now);
+    return s === 'imorgon' ? `imorgon ${DAYS[fromIso(dIso).getDay()]}` : s;
+  }
   function eventPhrase(e, now, withDate = true) {
-    let s = withDate ? `${e.title} ${sayDate(e.date, now)}` : e.title;
+    let s = withDate ? `${e.title} ${sayDateSpoken(e.date, now)}` : e.title;
     if (e.start && e.end) s += ` klockan ${sayTime(e.start)} till ${sayTime(e.end)}`;
     else if (e.start) s += ` klockan ${sayTime(e.start)}`;
     if (e.gather) s += `, med samling klockan ${sayTime(e.gather)}`;
@@ -182,6 +186,14 @@
       items.forEach(x => list.items.push({ text: cap(x), done: false }));
       return { reply: `Klart! ${list.name} innehåller nu ${joinList(list.items.map(i => i.text.toLowerCase()))}. Något mer?`, expectMore: true, ui: { tab: 'lists', open: list.id } };
     }
+    if (p.type === 'confirm-delete-list') {
+      const list = state.checklists.find(c => c.id === p.listId);
+      if (list && rx('^(?:ja|japp|jajamän|absolut|gör det|ta bort|radera|visst|okej|ok)\\b').test(t)) {
+        state.checklists = state.checklists.filter(c => c.id !== list.id);
+        return { reply: `Okej, listan ${list.name} är borttagen. Något mer?`, expectMore: true, ui: { tab: 'lists' } };
+      }
+      return { reply: 'Då låter jag den vara kvar. Något annat?', expectMore: true };
+    }
     if (p.type === 'event-title') {
       if (cancel) return { reply: 'Okej, jag lägger inte in något. Något annat?', expectMore: true };
       return handleAdd(p.text + ' ' + t, state, now);
@@ -204,6 +216,30 @@
   function handleList(t, state) {
     let m;
     const ui = list => ({ tab: 'lists', open: list && list.id });
+
+    // Ta bort hel lista – frågar först
+    m = t.match(rx('^(?:ta bort|radera)\\s+(?:hela\\s+)?(?:check)?listan\\s+(.+)$')) || t.match(rx('^(?:ta bort|radera)\\s+(\\S*listan)$'));
+    if (m) {
+      const list = findList(state, m[1]);
+      if (!list) return { reply: `Jag hittar ingen sådan lista. Du har ${listNames(state)}.`, expectMore: true };
+      pending = { type: 'confirm-delete-list', listId: list.id, at: Date.now() };
+      return { reply: `Vill du verkligen ta bort hela listan ${list.name}?`, expectMore: true, ui: ui(list) };
+    }
+    // Ta bort punkt: "ta bort mjölk från handlalistan"
+    m = t.match(rx('^(?:ta bort|radera|stryk)\\s+(.+?)(?:\\s(?:från|ur|på|i)\\s(\\S*list.*))?$'));
+    if (m) {
+      const list = findList(state, m[2] || '');
+      if (!list) return { reply: `Vilken lista ska jag ta bort det från? Du har ${listNames(state)}.`, expectMore: true };
+      const gone = [], miss = [];
+      for (const it of splitItems(m[1])) {
+        const hit = best(list.items, it, i => i.text);
+        if (hit) { list.items.splice(list.items.indexOf(hit), 1); gone.push(hit.text.toLowerCase()); } else miss.push(it);
+      }
+      state.activeList = list.id;
+      let reply = gone.length ? `Klart, jag har tagit bort ${joinList(gone)} från ${list.name}. ` : '';
+      if (miss.length) reply += `${cap(joinList(miss))} fanns inte på ${list.name}. `;
+      return { reply: reply + 'Något mer?', expectMore: true, ui: ui(list) };
+    }
 
     // Byt namn på punkt: "ändra mjölk till havremjölk på handlalistan"
     m = t.match(rx('^(?:ändra|byt ut|byt)\\s+(.+?)\\s+(?:till|mot)\\s+(.+?)(?:\\s(?:på|i)\\s(\\S*list.*))?$'));
@@ -412,11 +448,26 @@
     };
   }
 
+  // "Kan du ta bort…", "Skulle du kunna lägga till…", "Jag vill flytta…" → själva kommandot
+  const VERB_FORMS = [['lägga', 'lägg'], ['byta', 'byt'], ['döpa', 'döp'], ['stryka', 'stryk'], ['nollställa', 'nollställ'],
+    ['återställa', 'återställ'], ['bocka', 'bocka'], ['kryssa', 'kryssa'], ['skriva', 'skriv'], ['sätta', 'sätt'], ['göra', 'gör']];
+  function politeStrip(t) {
+    let prev;
+    do {
+      prev = t;
+      t = t.replace(rx('^(?:snälla|hörru|hör du|okej|ok|och|men|så|asså|alltså|eh|öh|ja|jo)\\s+'), '')
+        .replace(rx('^(?:kan du|kan ni|kunde du|skulle du kunna|vill du|orkar du|är du snäll och|jag vill att du|jag skulle vilja att du|jag skulle vilja|jag vill|jag behöver|får jag be dig|hjälp mig(?: att| med att)?)\\s+'), '')
+        .replace(rx('\\s+(?:tack|snälla|är du snäll|tack så mycket)$'), '');
+    } while (t !== prev);
+    for (const [inf, imp] of VERB_FORMS) t = t.replace(rx(`^${inf}\\b`), imp);
+    return t.trim();
+  }
+
   // ---------- Huvudfunktion ----------
   function handle(raw, state, now = new Date()) {
     state.events = state.events || [];
     state.checklists = state.checklists || [];
-    const t = stripWake(norm(raw));
+    const t = politeStrip(stripWake(norm(raw)));
 
     if (!t) return { reply: 'Ja snygging? Vad kan jag göra för dig?', expectMore: true };
 
@@ -442,11 +493,14 @@
     if (rx('^(?:ändra|byt|döp om|flytta|uppdatera|sätt om)\\b').test(t)) return handleEdit(t, state, now);
 
     if (rx('^(?:ta bort|radera|stryk|avboka|ställ in)\\b').test(t)) return handleDelete(t, state, now);
+    // "…bandyträningen imorgon kan du ta bort" eller annan ordföljd: ta aldrig "ta bort" som en ny aktivitet
+    const del = t.match(rx('\\b(?:ta bort|radera|avboka|ställ in)\\b'));
+    if (del) return handleDelete('ta bort ' + t.replace(del[0], ' ').replace(/\s+/g, ' ').trim(), state, now);
 
-    if (rx('^(?:lägg|boka|skapa|planera|skriv|notera|sätt|påminn|kan du|jag ska)\\b').test(t) || rx(`\\b${KL}\\d`).test(t))
+    if (rx('^(?:lägg|boka|skapa|planera|skriv|notera|sätt|påminn|jag ska|jag har|vi ska|vi har|jag måste)\\b').test(t) || rx(`\\b${KL}\\d`).test(t))
       return handleAdd(t, state, now);
 
-    return { reply: 'Förlåt snygging, det fattade jag inte. Säg till exempel: lägg till bandyträning imorgon klockan 21.', expectMore: true };
+    return { reply: `Jag förstod inte riktigt "${t}". Säg till exempel: lägg till bandyträning imorgon klockan 21, eller: ta bort bandyträningen.`, expectMore: true };
   }
 
   const api = { handle, iso, fromIso, addDays, sayDate, sayTime, uid, cap, DAYS, MONTHS, sortEv };
