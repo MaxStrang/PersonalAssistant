@@ -2,7 +2,7 @@
   'use strict';
   const B = window.Brain;
   const KEY = 'snygging-v1';
-  const APP_VERSION = 11;   // höj vid varje ändring – syns under inställningar
+  const APP_VERSION = 12;   // höj vid varje ändring – syns under inställningar
 
   // ================= ÄNDRA HÄR: dina förinställda checklistor =================
   // Nya listor du lägger till här dyker upp automatiskt nästa gång appen laddas.

@@ -51,3 +51,8 @@ say('Äta banan den 26 november, åka o fiska den 10 december kl 10-15 och äta 
 say('lägg till padel imorgon kl 18 och middag kl 20');
 say('lägg till middag och bio på fredag kl 19');
 say('lägg till tandläkare på tisdag kl 9, gym på onsdag kl 17-18 och bandymatch på lördag kl 14 med samling kl 13');
+
+console.log('--- Talade tider och "ska jag" ---');
+for (const t of ['Imorgon ska jag äta en banan', 'Jag ska, springa tio kilometer på tisdag', 'lägg till padel imorgon halv nio på kvällen',
+  'möte på onsdag kvart i tio', 'tandläkare på torsdag fem i halv tre', 'middag på lördag vid sjutiden', 'bio imorgon klockan 2030',
+  'lunch imorgon klockan tolv till ett', 'fest den tjugonionde november', 'från halv åtta till kvart över nio imorgon ska jag plugga']) say(t);

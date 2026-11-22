@@ -32,12 +32,66 @@
   }
 
   function norm(s) {
-    return String(s).toLowerCase()
+    const t = String(s).toLowerCase()
       .replace(/[–—]/g, '-')
       .replace(/,/g, ' , ')
       .replace(/[^a-z0-9åäöéü:.,\-\/ ]+/g, ' ')
       .replace(/\.(?!\d)/g, ' ')
       .replace(/\s+/g, ' ').trim();
+    return spoken(t).replace(/\s+/g, ' ').trim();
+  }
+
+  // ---------- Talat språk: "halv nio", "kvart över sju", "tio kilometer", "den tjugonionde" ----------
+  const ONES = { en: 1, ett: 1, två: 2, tre: 3, fyra: 4, fem: 5, sex: 6, sju: 7, åtta: 8, nio: 9 };
+  const SMALL = { noll: 0, två: 2, tre: 3, fyra: 4, fem: 5, sex: 6, sju: 7, åtta: 8, nio: 9, tio: 10, elva: 11, tolv: 12,
+    tretton: 13, fjorton: 14, femton: 15, sexton: 16, sjutton: 17, arton: 18, aderton: 18, nitton: 19 };
+  const TENS = { tjugo: 20, trettio: 30, fyrtio: 40, femtio: 50 };
+  const ORD = { första: 1, andra: 2, tredje: 3, fjärde: 4, femte: 5, sjätte: 6, sjunde: 7, åttonde: 8, nionde: 9, tionde: 10,
+    elfte: 11, tolfte: 12, trettonde: 13, fjortonde: 14, femtonde: 15, sextonde: 16, sjuttonde: 17, artonde: 18, nittonde: 19,
+    tjugonde: 20, trettionde: 30 };
+  const MONTH_RE = '(?:jan|feb|mar|apr|maj|jun|jul|aug|sep|okt|nov|dec)[a-zåäö]*';
+  const hm2 = (h, m) => `kl ${((h % 24) + 24) % 24}:${String(m).padStart(2, '0')}`;
+
+  function spoken(t) {
+    // Ordningstal i datum: "den tjugonionde november", "tjugoförsta december"
+    const ordVal = w => {
+      if (ORD[w] != null) return ORD[w];
+      const m = w.match(/^(tjugo|trettio)(första|andra|tredje|fjärde|femte|sjätte|sjunde|åttonde|nionde)$/);
+      return m ? TENS[m[1]] + ORD[m[2]] : null;
+    };
+    t = t.replace(rx('\\b(den |)([a-zåäö]+)(?= ' + MONTH_RE + '\\b|$| |,)', 'g'), (all, den, w) => {
+      const v = ordVal(w);
+      if (v == null) return all;
+      return den || rx('^\\s*' + MONTH_RE).test(t.slice(t.indexOf(all) + all.length)) ? `${den}${v}` : all;
+    });
+    // Grundtal: "tjugofem" → 25, "tio" → 10 ("en"/"ett" bara efter klockan/halv/kvart, annars är det "en banan")
+    t = t.replace(rx('\\b(tjugo|trettio|fyrtio|femtio)(en|ett|två|tre|fyra|fem|sex|sju|åtta|nio)?\\b', 'g'), (_, a, b2) => String(TENS[a] + (b2 ? ONES[b2] : 0)));
+    t = t.replace(rx('\\b(noll|två|tre|fyra|fem|sex|sju|åtta|nio|tio|elva|tolv|tretton|fjorton|femton|sexton|sjutton|arton|aderton|nitton)\\b', 'g'), w => String(SMALL[w]));
+    t = t.replace(rx('\\b(kl|klockan|halv|över|i) (en|ett)\\b', 'g'), '$1 1');
+    t = t.replace(rx('\\b(\\d{1,2}(?::\\d{2})?) (till|-) (en|ett)\\b', 'g'), '$1 $2 1');
+    t = t.replace(rx('\\b(ett|två|tre|fyra|fem|sex|sju|åtta|nio|tio|elva|tolv|tjugo)tiden\\b', 'g'), (_, w) => `${w === 'ett' ? 1 : w === 'tjugo' ? 20 : SMALL[w]}-tiden`);
+
+    const KLp = '(?:(?:kl|klockan) )?';
+    // "fem i halv nio" = 8:25, "fem över halv nio" = 8:35
+    t = t.replace(rx(KLp + '(5|10) (?:minuter )?i halv (\\d{1,2})\\b', 'g'), (_, n, h) => hm2(+h - 1, 30 - +n));
+    t = t.replace(rx(KLp + '(5|10) (?:minuter )?över halv (\\d{1,2})\\b', 'g'), (_, n, h) => hm2(+h - 1, 30 + +n));
+    // "halv nio" = 8:30
+    t = t.replace(rx(KLp + 'halv (\\d{1,2})\\b', 'g'), (_, h) => hm2(+h - 1, 30));
+    // "kvart över sju" = 7:15, "kvart i åtta" = 7:45
+    t = t.replace(rx(KLp + 'kvart över (\\d{1,2})\\b', 'g'), (_, h) => hm2(+h, 15));
+    t = t.replace(rx(KLp + 'kvart i (\\d{1,2})\\b', 'g'), (_, h) => hm2(+h - 1, 45));
+    // "tio över sju" = 7:10, "fem i åtta" = 7:55
+    t = t.replace(rx(KLp + '(5|10|20|25) (?:minuter )?över (\\d{1,2})\\b', 'g'), (_, n, h) => hm2(+h, +n));
+    t = t.replace(rx(KLp + '(5|10|20|25) (?:minuter )?i (\\d{1,2})\\b', 'g'), (_, n, h) => hm2(+h - 1, 60 - +n));
+    // "21 noll noll", "kl 21 30", "kl 2130", "klockan 8 och 45", "21-tiden"
+    t = t.replace(rx('\\b(?:(?:kl|klockan) )?(\\d{1,2}) 0 0\\b', 'g'), (_, h) => hm2(+h, 0));
+    t = t.replace(rx('\\b(?:kl|klockan) (\\d{1,2}) (\\d{2})\\b', 'g'), (all, h, m) => +m < 60 && +h <= 24 ? hm2(+h, +m) : all);
+    t = t.replace(rx('\\b(?:kl|klockan) (\\d{1,2})(\\d{2})\\b', 'g'), (all, h, m) => +m < 60 && +h <= 24 ? hm2(+h, +m) : all);
+    t = t.replace(rx('\\b(?:kl|klockan) (\\d{1,2}) och (\\d{2})\\b', 'g'), (all, h, m) => +m > 24 && +m < 60 ? hm2(+h, +m) : all);
+    t = t.replace(rx('\\b(?:vid |runt |vid runt )?(\\d{1,2})-?tiden\\b', 'g'), (_, h) => `kl ${h}`);
+    // "8 på kvällen", "7 i morgon bitti" utan "klockan" framför
+    t = t.replace(rx('(?<!kl |klockan |:)\\b(\\d{1,2}(?::\\d{2})?) (?=på (?:kvällen|morgonen|eftermiddagen|förmiddagen)|i ?kväll\\b)', 'g'), 'kl $1 ');
+    return t;
   }
 
   function stripWake(t) {
@@ -79,10 +133,13 @@
   }
 
   function takeTimes(t, evening) {
+    // Morgon uttryckligen sagt? Annars betyder klockan 1–6 eftermiddag ("fem i halv tre" = 14:25)
+    const morning = rx('\\b(?:på morgonen|i morse|bitti|på natten|i natt|på förmiddagen)\\b').test(t);
     const hm = (h, m) => {
       h = +h; m = m ? +m : 0;
       if (h > 24 || m > 59) return null;
       if (evening && h < 12) h += 12;
+      else if (!morning && h >= 1 && h <= 6) h += 12;
       return `${pad(h % 24)}:${pad(m)}`;
     };
     let gather = null, start = null, end = null, m;
@@ -109,7 +166,12 @@
       .replace(rx('\\b(?:i|till|på|in i) (?:min |mina )?kalender(?:n)?\\b', 'g'), ' ')
       .replace(/\s+/g, ' ').trim()
       // "att jag har match" → "match"
-      .replace(rx('^(?:att |så att |om att |det att )?(?:jag|vi|man|du) (?:har|ska|skall|måste|behöver|borde|vill|kommer att|kommer)(?: (?:gå på|gå till|åka på|åka till|iväg på|på|till|en|ett))?\\s+'), '')
+      .replace(rx('^(?:att |så att |om att |det att )?(?:jag|vi|man|du) (?:har|ska|skall|måste|behöver|borde|vill|tänker|kommer att|kommer)(?: att)?(?: (?:gå på|gå till|åka på|åka till|iväg på|på|till))?(?:\\s+|$)'), '')
+      // omvänd ordföljd efter tid/dag: "(imorgon) ska jag äta banan"
+      .replace(rx('^(?:så )?(?:ska|skall|har|måste|behöver|borde|vill|tänker|kommer) (?:jag|vi|man|du)(?: att)?(?: (?:gå på|gå till|åka på|åka till|iväg på|på|till))?(?:\\s+|$)'), '')
+      // "äta en banan" → "äta banan"
+      .replace(rx('\\s(?:en|ett)\\s', 'g'), ' ')
+      .replace(rx('\\b(?:på (?:kvällen|morgonen|eftermiddagen|förmiddagen|natten)|i morse|bitti|i natt)\\b', 'g'), ' ')
       .replace(rx('^(?:att |det är |det blir |det finns )'), '')
       .replace(rx('\\s+(?:åt mig|för mig|till mig)$'), '');
     const w = t.split(' ').filter(Boolean);
@@ -388,7 +450,7 @@
     }
 
     if (mode !== 'rename') {
-      const evening = rx('\\b(?:kväll|kvällen|eftermiddag)\\b').test(target);
+      const evening = rx('\\b(?:i ?kväll|kväll|kvällen|eftermiddag|eftermiddagen)\\b').test(target);
       const d = takeDate(target, now);
       // "till 19" utan "kl" ska också räknas som tid
       const tt = rx('^\\d{1,2}(?:[:.]\\d{2})?\\b').test(d.text.trim()) ? 'kl ' + d.text.trim() : d.text;
@@ -430,7 +492,8 @@
 
   // Tolka EN aktivitet ur en bit text. inheritDate = dagen från föregående aktivitet i samma mening.
   function parseEvent(t, now, inheritDate) {
-    const evening = rx('\\b(?:kväll|kvällen|eftermiddag|eftermiddagen)\\b').test(t);
+    // Kväll om det sägs – eller om det är något man gör på kvällen (middag kl 7 = 19:00)
+    const evening = rx('\\b(?:i ?kväll|kväll|kvällen|eftermiddag|eftermiddagen|middag|kvällsmat|bio|fest|kalas|afterwork|after work|pub)\\b').test(t);
     const d = takeDate(t, now);
     const tm = takeTimes(d.text, evening);
     const title = cleanTitle(tm.text);
@@ -475,6 +538,7 @@
   }
 
   function handleAdd(t, state, now) {
+    t = t.replace(rx('^(?:jag|vi) (?:ska|skall|har|måste|behöver|tänker)(?: att)?\\s*,?\\s*'), '');
     const segs = splitEvents(t, now);
     if (segs) {
       const added = [], skipped = [];
@@ -555,7 +619,7 @@
     const del = t.match(rx('\\b(?:ta bort|radera|avboka|ställ in)\\b'));
     if (del) return handleDelete('ta bort ' + t.replace(del[0], ' ').replace(/\s+/g, ' ').trim(), state, now);
 
-    if (rx('^(?:lägg|boka|skapa|planera|skriv|notera|sätt|påminn|jag ska|jag har|vi ska|vi har|jag måste)\\b').test(t) || rx(`\\b${KL}\\d`).test(t) || takeDate(t, now).date)
+    if (rx('^(?:lägg|boka|skapa|planera|skriv|notera|sätt|påminn|jag ska|jag har|vi ska|vi har|jag måste|ska jag|ska vi|jag tänker)\\b').test(t) || rx(`\\b${KL}\\d`).test(t) || takeDate(t, now).date)
       return handleAdd(t, state, now);
 
     return { reply: `Jag förstod inte riktigt "${t}". Säg till exempel: lägg till bandyträning imorgon klockan 21, eller: ta bort bandyträningen.`, expectMore: true };
