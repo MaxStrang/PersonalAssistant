@@ -2,6 +2,7 @@
   'use strict';
   const B = window.Brain;
   const KEY = 'snygging-v1';
+  const APP_VERSION = 10;   // höj vid varje ändring – syns under inställningar
 
   // ================= ÄNDRA HÄR: dina förinställda checklistor =================
   // Nya listor du lägger till här dyker upp automatiskt nästa gång appen laddas.
@@ -744,5 +745,26 @@
   render();
   initSettings();
   Sync.init();
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  // ---------- Uppdateringar ----------
+  // Ladda om automatiskt när en ny version tagit över, och leta efter nya versioner när appen öppnas igen.
+  $('#appVersion').textContent = 'Version ' + APP_VERSION;
+  if ('serviceWorker' in navigator) {
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!hadController || reloading) return;
+      reloading = true; location.reload();
+    });
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+    }).catch(() => {});
+  }
+  $('#forceUpdate').onclick = async () => {
+    $('#forceUpdate').textContent = 'Uppdaterar…';
+    try {
+      if ('serviceWorker' in navigator) for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+      if (window.caches) for (const k of await caches.keys()) await caches.delete(k);
+    } catch (e) { /* ladda om ändå */ }
+    location.replace(location.pathname + '?v=' + Date.now());   // din data ligger kvar
+  };
 })();

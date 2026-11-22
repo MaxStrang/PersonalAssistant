@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
   <div class="app">
@@ -138,6 +138,13 @@
         </div>
 
         <div class="group">
+          <h3>Uppdatering</h3>
+          <p id="appVersion" class="hint" style="margin-top:0"></p>
+          <button id="forceUpdate" class="ghost">Hämta senaste versionen</button>
+          <p class="hint">Din kalender och dina listor ligger kvar.</p>
+        </div>
+
+        <div class="group">
           <h3>Saker du kan säga</h3>
           <ul class="examples">
             <li>Kan du lägga till att jag har match klockan 16:40 till 18:40 imorgon</li>
@@ -171,7 +178,7 @@
     </div>
   </footer>
 
-  <script src="brain.js"></script>
-  <script src="app.js"></script>
+  <script src="brain.js?v=10"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>
