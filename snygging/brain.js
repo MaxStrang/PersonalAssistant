@@ -428,19 +428,77 @@
     return { reply: `Okej, jag har tagit bort ${eventPhrase(hit, now)}. Något mer?`, expectMore: true, ui: { tab: 'cal' } };
   }
 
-  function handleAdd(t, state, now) {
+  // Tolka EN aktivitet ur en bit text. inheritDate = dagen från föregående aktivitet i samma mening.
+  function parseEvent(t, now, inheritDate) {
     const evening = rx('\\b(?:kväll|kvällen|eftermiddag|eftermiddagen)\\b').test(t);
     const d = takeDate(t, now);
     const tm = takeTimes(d.text, evening);
     const title = cleanTitle(tm.text);
-    if (!title) {
+    let date = d.date || inheritDate || iso(now);
+    // Ingen dag sagd och tiden har redan passerat idag → imorgon
+    if (!d.date && !inheritDate && tm.start && tm.start < `${pad(now.getHours())}:${pad(now.getMinutes())}`) date = iso(addDays(now, 1));
+    return { title, date, hasDate: !!d.date, hasTime: !!(tm.start || tm.gather), start: tm.start, end: tm.end, gather: tm.gather };
+  }
+
+  // Dela "äta banan den 26 nov, fiska den 10 dec kl 10-15 och gröt den 29:e kl 8" i en bit per aktivitet
+  function splitEvents(t, now) {
+    const parts = t.split(rx('\\s*,\\s*|\\s+(?:och|samt|sen|sedan|plus|därefter)\\s+')).map(x => x.trim()).filter(Boolean);
+    if (parts.length < 2) return null;
+    const seps = [];                                       // kom ihåg vad som stod mellan bitarna
+    let rest = t;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const at = rest.indexOf(parts[i]) + parts[i].length;
+      rest = rest.slice(at);
+      const nx = rest.indexOf(parts[i + 1]);
+      seps.push(rest.slice(0, nx).trim() || ',');
+      rest = rest.slice(nx);
+    }
+    const glue = (a, sep, b2) => `${a}${sep === ',' ? ',' : ' ' + sep} ${b2}`;
+    // 1) Bitar utan namn ("med samling 20", "20" från "mellan 18 och 20") hör till biten före
+    let segs = [parts[0]];
+    for (let i = 1; i < parts.length; i++) {
+      const p = parseEvent(parts[i], now);
+      if (!p.title) segs[segs.length - 1] = glue(segs[segs.length - 1], seps[i - 1], parts[i]);
+      else segs.push(parts[i]);
+    }
+    // 2) Bitar med namn men utan dag/tid ("middag" i "middag och bio på fredag") hör till biten efter
+    const out = [];
+    for (let i = 0; i < segs.length; i++) {
+      const p = parseEvent(segs[i], now);
+      if (!p.hasDate && !p.hasTime && i < segs.length - 1) segs[i + 1] = segs[i] + ' och ' + segs[i + 1];
+      else out.push(segs[i]);
+    }
+    if (out.length < 2) return null;
+    // Minst två riktiga aktiviteter med egen dag eller tid krävs
+    const real = out.map(x => parseEvent(x, now)).filter(p => p.title && (p.hasDate || p.hasTime));
+    return real.length >= 2 ? out : null;
+  }
+
+  function handleAdd(t, state, now) {
+    const segs = splitEvents(t, now);
+    if (segs) {
+      const added = [], skipped = [];
+      let lastDate = null;
+      for (const seg of segs) {
+        const p = parseEvent(seg, now, lastDate);
+        if (!p.title) { skipped.push(seg); continue; }
+        const ev = { id: uid(), title: p.title, date: p.date, start: p.start, end: p.end, gather: p.gather };
+        state.events.push(ev); added.push(ev); lastDate = p.date;
+      }
+      if (added.length) {
+        const list = added.map(ev => eventPhrase(ev, now));
+        return {
+          reply: `Jag löser det snygging! Jag har lagt till ${added.length} aktiviteter: ${joinList(list)}.${skipped.length ? ` Jag förstod inte "${skipped.join('", "')}".` : ''} Är det något mer?`,
+          expectMore: true, ui: { tab: 'cal', flash: added[0].id },
+        };
+      }
+    }
+    const p = parseEvent(t, now);
+    if (!p.title) {
       pending = { type: 'event-title', text: t, at: Date.now() };
       return { reply: 'Javisst! Vad ska jag lägga in?', expectMore: true };
     }
-    let date = d.date || iso(now);
-    // Ingen dag sagd och tiden har redan passerat idag → imorgon
-    if (!d.date && tm.start && tm.start < `${pad(now.getHours())}:${pad(now.getMinutes())}`) date = iso(addDays(now, 1));
-    const ev = { id: uid(), title, date, start: tm.start, end: tm.end, gather: tm.gather };
+    const ev = { id: uid(), title: p.title, date: p.date, start: p.start, end: p.end, gather: p.gather };
     state.events.push(ev);
     return {
       reply: `Jag löser det snygging! Jag har nu lagt till ${eventPhrase(ev, now)} i din kalender. Är det något mer du vill göra?`,
@@ -497,7 +555,7 @@
     const del = t.match(rx('\\b(?:ta bort|radera|avboka|ställ in)\\b'));
     if (del) return handleDelete('ta bort ' + t.replace(del[0], ' ').replace(/\s+/g, ' ').trim(), state, now);
 
-    if (rx('^(?:lägg|boka|skapa|planera|skriv|notera|sätt|påminn|jag ska|jag har|vi ska|vi har|jag måste)\\b').test(t) || rx(`\\b${KL}\\d`).test(t))
+    if (rx('^(?:lägg|boka|skapa|planera|skriv|notera|sätt|påminn|jag ska|jag har|vi ska|vi har|jag måste)\\b').test(t) || rx(`\\b${KL}\\d`).test(t) || takeDate(t, now).date)
       return handleAdd(t, state, now);
 
     return { reply: `Jag förstod inte riktigt "${t}". Säg till exempel: lägg till bandyträning imorgon klockan 21, eller: ta bort bandyträningen.`, expectMore: true };

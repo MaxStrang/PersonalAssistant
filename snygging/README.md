@@ -43,6 +43,8 @@ Tryck på den stora knappen och prata. När du tystnar i cirka 1,5 sekund svarar
 - "Ändra tiden för bandymatchen till 17–18:30" / "Ändra samlingen för bandymatchen till 18:15"
 - "Ändra mjölk till havremjölk på handlalistan"
 - Du kan också trycka på en aktivitet i kalendern för att redigera den.
+- Flera på en gång: "Äta banan den 26 november, åka och fiska den 10 december kl 10–15 och äta gröt den 29:e kl 8–8:15"
+- Kalendern har vyerna Dag, Vecka, Månad och År. Tryck två gånger på en dag i månadsvyn för att se dagen timme för timme.
 - "Kan du skapa en checklista åt mig" ger följdfrågorna "Vad ska listan heta?" och "Vad ska den innehålla?"
 - "Lägg till imorgon kl 16" ger följdfrågan "Vad ska jag lägga in?"
 - Säg "avbryt" för att avsluta en följdfråga.

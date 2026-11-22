@@ -45,3 +45,9 @@ say('skulle du kunna lägga till tandläkare på onsdag kl 9');
 say('jag vill flytta tandläkaren till kl 10');
 say('tandläkaren på onsdag kan du ta bort');
 say('kan du ta bort ägg från handlalistan');
+
+console.log('--- Flera aktiviteter i samma mening ---');
+say('Äta banan den 26 november, åka o fiska den 10 december kl 10-15 och äta gröt den 29:e november kl 8:00-8:15');
+say('lägg till padel imorgon kl 18 och middag kl 20');
+say('lägg till middag och bio på fredag kl 19');
+say('lägg till tandläkare på tisdag kl 9, gym på onsdag kl 17-18 och bandymatch på lördag kl 14 med samling kl 13');

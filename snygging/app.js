@@ -2,7 +2,7 @@
   'use strict';
   const B = window.Brain;
   const KEY = 'snygging-v1';
-  const APP_VERSION = 10;   // höj vid varje ändring – syns under inställningar
+  const APP_VERSION = 11;   // höj vid varje ändring – syns under inställningar
 
   // ================= ÄNDRA HÄR: dina förinställda checklistor =================
   // Nya listor du lägger till här dyker upp automatiskt nästa gång appen laddas.
@@ -43,24 +43,22 @@
   // ---------- Vy-läge ----------
   let tab = 'cal';
   const now0 = new Date();
-  let viewMonth = new Date(now0.getFullYear(), now0.getMonth(), 1);
   let selDate = B.iso(now0);
+  const VIEW_KEY = 'snygging-view';
+  let view = localStorage.getItem(VIEW_KEY) || 'month';   // day | week | month | year
+  let lastScrollKey = '';
   let editingId = null;
   const openLists = new Set();
 
   function showTab(name) {
     tab = name;
     document.querySelectorAll('.tab').forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
-    document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    document.querySelectorAll('.seg button[data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   }
-  document.querySelectorAll('.seg button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+  document.querySelectorAll('.seg button[data-tab]').forEach(b => b.onclick = () => showTab(b.dataset.tab));
   $('#settingsBtn').onclick = () => showTab(tab === 'settings' ? 'cal' : 'settings');
 
-  function goToDate(dIso) {
-    const d = B.fromIso(dIso);
-    selDate = dIso;
-    viewMonth = new Date(d.getFullYear(), d.getMonth(), 1);
-  }
+  function goToDate(dIso) { selDate = dIso; }
 
   // ---------- Rendering ----------
   const evsOn = d => state.events.filter(e => e.date === d).sort(B.sortEv);
@@ -80,28 +78,169 @@
       : 'Inget inplanerat. Tryck på knappen och säg vad du ska göra.';
   }
 
-  function renderCal(flashId) {
-    const now = new Date(), today = B.iso(now);
-    const y = viewMonth.getFullYear(), m = viewMonth.getMonth();
-    $('#monthTitle').textContent = `${B.MONTHS[m]} ${y === now.getFullYear() ? '' : y}`.trim();
+  // ---------- Kalendervyer ----------
+  const HOUR = 48;                                     // pixlar per timme i dag-/veckovyn
+  const mins = t => +t.slice(0, 2) * 60 + +t.slice(3);
+  const pad2 = n => String(n).padStart(2, '0');
+  // Samma namn får alltid samma färg (bandyträning är alltid grön, osv)
+  const colorOf = title => { let h = 7; for (const ch of title.toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h % 6; };
+  const weekStart = d => B.addDays(d, -((d.getDay() + 6) % 7));
+  function weekNo(d) {
+    const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+    return Math.ceil(((t - new Date(Date.UTC(t.getUTCFullYear(), 0, 1))) / 86400000 + 1) / 7);
+  }
+  function byDate() { const m = {}; for (const e of state.events) (m[e.date] = m[e.date] || []).push(e); return m; }
 
-    const first = new Date(y, m, 1);
-    const offset = (first.getDay() + 6) % 7;                 // måndag först
-    const days = new Date(y, m + 1, 0).getDate();
-    const cells = Math.ceil((offset + days) / 7) * 7;
-    let html = '';
+  function setView(v) { view = v; localStorage.setItem(VIEW_KEY, v); editingId = null; renderCal(); }
+
+  function navigate(n) {
+    const d = B.fromIso(selDate), today = new Date();
+    let t;
+    if (n === 0) t = today;
+    else if (view === 'day') t = B.addDays(d, n);
+    else if (view === 'week') t = B.addDays(d, 7 * n);
+    else if (view === 'month') t = new Date(d.getFullYear(), d.getMonth() + n, 1);
+    else t = new Date(d.getFullYear() + n, d.getMonth(), 1);
+    // hamnar man i innevarande månad/år: välj dagens datum
+    if ((view === 'month' || view === 'year') && t.getFullYear() === today.getFullYear() && (view === 'year' || t.getMonth() === today.getMonth())) t = today;
+    selDate = B.iso(t); editingId = null; renderCal();
+  }
+
+  function renderCal(flashId) {
+    document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+    $('#calLayout').dataset.view = view;
+    const d = B.fromIso(selDate), now = new Date(), m = d.getMonth(), y = d.getFullYear();
+    let title, body;
+    if (view === 'day') {
+      title = `${B.cap(B.DAYS[d.getDay()])} ${d.getDate()} ${B.MONTHS[m]}`;
+      body = timelineHtml([selDate], flashId);
+    } else if (view === 'week') {
+      const ws = weekStart(d), we = B.addDays(ws, 6);
+      title = `Vecka ${weekNo(d)}`;
+      $('#calSub').textContent = ws.getMonth() === we.getMonth()
+        ? `${ws.getDate()}–${we.getDate()} ${B.MONTHS[we.getMonth()]}`
+        : `${ws.getDate()} ${B.MONTHS[ws.getMonth()].slice(0, 3)} – ${we.getDate()} ${B.MONTHS[we.getMonth()].slice(0, 3)}`;
+      body = timelineHtml([0, 1, 2, 3, 4, 5, 6].map(i => B.iso(B.addDays(ws, i))), flashId);
+    } else if (view === 'month') {
+      title = `${B.MONTHS[m]}${y === now.getFullYear() ? '' : ' ' + y}`;
+      body = monthHtml(y, m);
+    } else {
+      title = String(y);
+      body = yearHtml(y);
+    }
+    if (view !== 'week') $('#calSub').textContent = '';
+    $('#calTitle').textContent = title;
+    $('#calBody').innerHTML = body;
+    renderAgenda(flashId);
+
+    // Dag/vecka: scrolla till första aktiviteten (eller 07:00) när man byter dag/vecka
+    const sc = $('#tlScroll');
+    if (sc) {
+      const key = view + (view === 'week' ? B.iso(weekStart(d)) : selDate);
+      if (key !== lastScrollKey) {
+        const shown = view === 'day' ? [selDate] : [0, 1, 2, 3, 4, 5, 6].map(i => B.iso(B.addDays(weekStart(d), i)));
+        const starts = state.events.filter(e => shown.includes(e.date) && e.start).map(e => mins(e.gather && e.gather < e.start ? e.gather : e.start));
+        const n = new Date(), nowMin = n.getHours() * 60 + n.getMinutes();
+        const first = starts.length ? Math.min(...starts) : shown.includes(B.iso(n)) ? Math.max(0, nowMin - 60) : 7 * 60;
+        sc.scrollTop = Math.max(0, (first / 60) * HOUR - 24);
+        lastScrollKey = key;
+      }
+    }
+  }
+
+  function monthHtml(y, m) {
+    const today = B.iso(new Date()), map = byDate();
+    const offset = (new Date(y, m, 1).getDay() + 6) % 7;
+    const cells = Math.ceil((offset + new Date(y, m + 1, 0).getDate()) / 7) * 7;
+    let html = '<div class="weekdays"><span>Mån</span><span>Tis</span><span>Ons</span><span>Tor</span><span>Fre</span><span>Lör</span><span>Sön</span></div><div class="grid">';
     for (let i = 0; i < cells; i++) {
       const d = new Date(y, m, 1 - offset + i), di = B.iso(d);
-      const evs = evsOn(di);
+      const evs = (map[di] || []).sort(B.sortEv);
       const cls = ['day', d.getMonth() !== m && 'out', di === today && 'today', di === selDate && 'sel'].filter(Boolean).join(' ');
-      const chips = evs.slice(0, 3).map(e => `<i title="${esc(timeText(e) + ' ' + e.title)}">${esc(e.title)}</i>`).join('')
+      const chips = evs.slice(0, 3).map(e => `<i class="c${colorOf(e.title)}" title="${esc(timeText(e) + ' ' + e.title)}">${esc(e.title)}</i>`).join('')
         + (evs.length > 3 ? `<i class="more">+${evs.length - 3}</i>` : '');
       const label = `${d.getDate()} ${B.MONTHS[d.getMonth()]}${evs.length ? `, ${evs.length} aktivitet${evs.length > 1 ? 'er' : ''}` : ''}`;
       html += `<button class="${cls}" data-day="${di}" aria-label="${label}"><span class="n">${d.getDate()}</span><span class="evs">${chips}</span></button>`;
     }
-    $('#grid').innerHTML = html;
+    return html + '</div><p class="hint cal-hint">Tryck två gånger på en dag för att se dagen timme för timme.</p>';
+  }
 
-    // Vald dag
+  function yearHtml(y) {
+    const today = B.iso(new Date()), map = byDate();
+    let html = '<div class="year">';
+    for (let m = 0; m < 12; m++) {
+      const off = (new Date(y, m, 1).getDay() + 6) % 7, n = new Date(y, m + 1, 0).getDate();
+      let cells = '<span></span>'.repeat(off);
+      for (let dd = 1; dd <= n; dd++) {
+        const di = B.iso(new Date(y, m, dd)), evs = map[di];
+        const cls = [evs && 'has', di === today && 'today'].filter(Boolean).join(' ');
+        cells += `<span class="${cls}"${evs ? ` style="--dot: var(--k${colorOf(evs[0].title)})"` : ''}>${dd}</span>`;
+      }
+      const count = Object.keys(map).filter(k => k.startsWith(`${y}-${pad2(m + 1)}`)).reduce((s, k) => s + map[k].length, 0);
+      html += `<button class="mini" data-goto-month="${y}-${m}"><span class="mini-head"><b>${B.cap(B.MONTHS[m])}</b>${count ? `<small>${count}</small>` : ''}</span><span class="mini-grid">${cells}</span></button>`;
+    }
+    return html + '</div>';
+  }
+
+  // Lägg överlappande aktiviteter bredvid varandra
+  function layoutCols(evs) {
+    const items = evs.map(e => {
+      const s = mins(e.start);
+      let en = e.end ? mins(e.end) : s + 60;
+      if (en <= s) en = 24 * 60;                        // över midnatt: rita till 24:00
+      return { e, s, en: Math.max(en, s + 20) };
+    }).sort((a, b) => a.s - b.s || b.en - a.en);
+    const out = []; let cluster = [], clusterEnd = -1;
+    const flush = () => { const n = Math.max(...cluster.map(x => x.col)) + 1; cluster.forEach(x => { x.cols = n; }); out.push(...cluster); cluster = []; };
+    for (const it of items) {
+      if (cluster.length && it.s >= clusterEnd) { flush(); clusterEnd = -1; }
+      const used = new Set(cluster.filter(x => x.en > it.s).map(x => x.col));
+      let c = 0; while (used.has(c)) c++;
+      it.col = c; cluster.push(it); clusterEnd = Math.max(clusterEnd, it.en);
+    }
+    if (cluster.length) flush();
+    return out;
+  }
+
+  function timelineHtml(days, flashId) {
+    const now = new Date(), today = B.iso(now), map = byDate();
+    const multi = days.length > 1;
+    const head = multi ? `<div class="tl-head tl-row"><span></span>${days.map(di => {
+      const x = B.fromIso(di);
+      return `<button class="tl-day${di === today ? ' today' : ''}${di === selDate ? ' sel' : ''}" data-day="${di}"><span>${B.DAYS[x.getDay()].slice(0, 3)}</span><b>${x.getDate()}</b></button>`;
+    }).join('')}</div>` : '';
+    const allday = days.map(di => (map[di] || []).filter(e => !e.start));
+    const alldayHtml = allday.some(l => l.length) ? `<div class="tl-allday tl-row"><span class="tl-lbl">Heldag</span>${allday.map(l =>
+      `<div>${l.map(e => `<button class="blk-mini c${colorOf(e.title)}" data-open-ev="${e.id}">${esc(e.title)}</button>`).join('')}</div>`).join('')}</div>` : '';
+    let hours = '';
+    for (let h = 0; h < 24; h++) hours += `<span style="top:${h * HOUR}px">${pad2(h)}:00</span>`;
+    const cols = days.map(di => {
+      const timed = (map[di] || []).filter(e => e.start);
+      let html = '';
+      for (const it of layoutCols(timed)) {
+        const { e, s, en, col, cols: n } = it, c = colorOf(e.title);
+        // Smal veckovy på mobil: överlappande block läggs lite förskjutna över varandra i stället för i smala kolumner
+        const cascade = days.length > 1 && window.innerWidth < 640 && n > 1;
+        const pos = cascade
+          ? `left:calc(${col * 28}% + 1px);width:calc(${100 - col * 28}% - 2px);z-index:${col + 1}`
+          : `left:calc(${(col / n) * 100}% + 2px);width:calc(${100 / n}% - 4px)`;
+        if (e.gather && mins(e.gather) < s) {
+          const g = mins(e.gather);
+          html += `<div class="gather-blk c${c}" style="top:${(g / 60) * HOUR}px;height:${((s - g) / 60) * HOUR}px;${pos}"><span>Samling ${e.gather}</span></div>`;
+        }
+        const h = Math.max(((en - s) / 60) * HOUR - 2, 20);
+        html += `<button class="blk c${c}${e.id === flashId ? ' flash' : ''}${h < 38 ? ' short' : ''}" data-open-ev="${e.id}" style="top:${(s / 60) * HOUR + 1}px;height:${h}px;${pos}">
+          <b>${esc(e.title)}</b><span>${e.start}${e.end ? '–' + e.end : ''}</span></button>`;
+      }
+      if (di === today) html += `<div class="now" style="top:${((now.getHours() * 60 + now.getMinutes()) / 60) * HOUR}px"></div>`;
+      return `<div class="tl-col${di === today ? ' today' : ''}">${html}</div>`;
+    }).join('');
+    return `${head}${alldayHtml}<div class="tl-scroll" id="tlScroll"><div class="tl-grid tl-row" style="height:${24 * HOUR}px"><div class="tl-hours">${hours}</div>${cols}</div></div>`;
+  }
+
+  function renderAgenda(flashId) {
+    const now = new Date(), today = B.iso(now);
     const sel = B.fromIso(selDate);
     const rel = B.sayDate(selDate, now);
     $('#dayTitle').textContent = rel === 'idag' || rel === 'imorgon'
@@ -109,8 +248,6 @@
     const list = evsOn(selDate);
     $('#dayList').innerHTML = list.length ? list.map(e => evHtml(e, flashId)).join('')
       : `<p class="empty">Inget inplanerat. Säg till exempel "lägg till padel ${rel === 'idag' ? 'idag' : B.DAYS[sel.getDay()]} kl 18".</p>`;
-
-    // Kommande efter vald dag
     const up = state.events.filter(e => e.date > selDate && e.date >= today).sort(B.sortEv).slice(0, 5);
     $('#upcoming').innerHTML = up.length
       ? `<p class="upcoming-title">Sedan</p>` + up.map(e => evHtml(e, flashId, true)).join('') : '';
@@ -165,13 +302,18 @@
     const t = e.target.closest('button, [data-open-ev]');
     if (!t) return;
     const ds = t.dataset;
-    if (ds.month !== undefined) {
-      const n = +ds.month;
-      if (n === 0) goToDate(B.iso(new Date()));
-      else viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + n, 1);
-      renderCal(); return;
+    if (ds.nav !== undefined) { navigate(+ds.nav); return; }
+    if (ds.view) { setView(ds.view); return; }
+    if (ds.gotoMonth) {
+      const [y, m] = ds.gotoMonth.split('-').map(Number), t = new Date();
+      selDate = B.iso(y === t.getFullYear() && m === t.getMonth() ? t : new Date(y, m, 1));
+      setView('month'); return;
     }
-    if (ds.day) { selDate = ds.day; editingId = null; renderCal(); return; }
+    if (ds.day) {
+      // andra trycket på samma dag i månadsvyn öppnar dagvyn
+      if (view === 'month' && ds.day === selDate) { setView('day'); return; }
+      selDate = ds.day; editingId = null; renderCal(); return;
+    }
     if (ds.delEv) {
       e.stopPropagation();
       const ev = state.events.find(x => x.id === ds.delEv);
@@ -179,7 +321,14 @@
       return;
     }
     if (ds.cancelEdit !== undefined) { editingId = null; renderCal(); return; }
-    if (ds.openEv) { editingId = ds.openEv; renderCal(); const f = $('[data-edit-ev] input'); f && f.focus(); return; }
+    if (ds.openEv) {
+      const ev = state.events.find(x => x.id === ds.openEv);
+      if (ev) selDate = ev.date;
+      editingId = ds.openEv; renderCal();
+      const f = $('[data-edit-ev]');
+      if (f) { f.scrollIntoView({ block: 'center', behavior: 'smooth' }); f.querySelector('input').focus({ preventScroll: true }); }
+      return;
+    }
     if (ds.delItem) { e.preventDefault(); const [l, i] = ds.delItem.split(':'); state.checklists.find(c => c.id === l).items.splice(+i, 1); save(); render(); return; }
     if (ds.reset) { state.checklists.find(c => c.id === ds.reset).items.forEach(i => i.done = false); save(); render(); return; }
     if (ds.delList) {
@@ -400,33 +549,52 @@
   }
 
   // Webbläsarens taligenkänning (Chrome, Edge, Safari på Mac)
+  // Webbläsarens taligenkänning (Chrome, Edge, Safari)
+  // iPhone är känslig: en igenkänning i taget, inget "continuous", släpp ljudet från uppläsningen först,
+  // och avsluta med stop() (inte abort) så att Safari släpper mikrofonen ordentligt till nästa gång.
+  let iosFails = 0;
+  function releaseAudio() {
+    try { if (synth) synth.cancel(); } catch (e) { /* */ }
+    try { player.pause(); player.removeAttribute('src'); player.load(); } catch (e) { /* */ }
+  }
   function listenBrowser() {
-    let heard = '', handled = false, silence = null, lastErr = null;
+    let heard = '', handled = false, silence = null, lastErr = null, started = false, watchdog = null;
+    const t0 = Date.now();
     let rec = new SR();
-    abortListening = () => {
-      handled = true; clearTimeout(silence); stopListening = null; abortListening = null;
-      try { rec && rec.abort(); } catch (e) { /* */ }
-      rec = null;
+    const cleanup = () => { handled = true; clearTimeout(silence); clearTimeout(watchdog); stopListening = null; abortListening = null; };
+    abortListening = () => { cleanup(); try { rec && rec.abort(); } catch (e) { /* */ } rec = null; };
+    const giveUp = msg => {
+      convo = false;
+      iosFails++;
+      if (isIOS && iosFails >= 2 && !azureReady()) {
+        localStorage.setItem(DICT_KEY, '1');
+        return setTalk('idle', 'Safaris röststyrning krånglar här. Jag byter till tangentbordets diktering – tryck på knappen igen.');
+      }
+      setTalk('idle', msg);
     };
     const finish = () => {
       if (handled) return;
-      handled = true; clearTimeout(silence); stopListening = null; abortListening = null;
-      try { rec && rec.abort(); } catch (e) { /* redan stoppad */ }
-      rec = null;
-      if (heard.trim()) return process(heard.trim());
+      cleanup();
+      const r = rec; rec = null;
+      try { r && r.stop(); } catch (e) { /* redan stoppad */ }
+      if (heard.trim()) { iosFails = 0; return process(heard.trim()); }
       convo = false;
       if (lastErr === 'service-not-allowed' || lastErr === 'network') srBroken = true;
       if (isIOS && (lastErr === 'service-not-allowed' || lastErr === 'not-allowed') && !azureReady()) {
         localStorage.setItem(DICT_KEY, '1');
         return setTalk('idle', 'Safari tillåter inte röststyrning här. Jag använder tangentbordets diktering i stället – tryck på knappen igen.');
       }
+      // Slutade direkt utan att höra något = Safari startade aldrig mikrofonen
+      if (isIOS && !lastErr && !started && Date.now() - t0 < 1500) return giveUp('Mikrofonen startade inte. Tryck och försök igen.');
       const fallback = srBroken && azureReady() ? ' Jag byter till Azure – tryck igen.' : '';
       setTalk('idle', lastErr && lastErr !== 'no-speech' && lastErr !== 'aborted' ? micHelp(lastErr) + fallback : 'Jag hörde inget. Tryck och försök igen.');
     };
-    rec.lang = 'sv-SE'; rec.interimResults = true; rec.continuous = true; rec.maxAlternatives = 1;
+    rec.lang = 'sv-SE'; rec.interimResults = true; rec.maxAlternatives = 1;
+    rec.continuous = !isIOS;                     // iPhone: en mening per tryck
+    rec.onstart = rec.onaudiostart = () => { started = true; };
     rec.onresult = e => {
       heard = Array.from(e.results).map(r => r[0].transcript).join(' ').replace(/\s+/g, ' ');
-      sessionHeard = true;
+      sessionHeard = true; started = true;
       $('#status').textContent = '”' + heard + '”';
       clearTimeout(silence);
       silence = setTimeout(finish, 1600);   // 1,6 s tystnad = du är klar
@@ -434,8 +602,15 @@
     rec.onerror = e => { lastErr = e.error; };
     rec.onend = finish;
     stopListening = () => { try { rec && rec.stop(); } catch (e) { /* */ } setTimeout(finish, 800); };
+    // Om mikrofonen aldrig kommer igång: ge upp efter 4 s i stället för att hänga
+    watchdog = setTimeout(() => {
+      if (handled || started) return;
+      cleanup(); try { rec && rec.abort(); } catch (e) { /* */ } rec = null;
+      giveUp('Mikrofonen svarade inte. Tryck och försök igen.');
+    }, 4000);
+    if (isIOS) releaseAudio();               // uppläsningen får inte hålla kvar ljudet
     try { rec.start(); setTalk('listening'); }
-    catch (e) { stopListening = null; setTalk('idle', 'Mikrofonen gick inte att starta: ' + e.message); }
+    catch (e) { cleanup(); giveUp('Mikrofonen gick inte att starta: ' + e.message); }
   }
 
   // Azure-taligenkänning: spelar in själv (funkar på iPhone, även från hemskärmen)

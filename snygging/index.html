@@ -16,7 +16,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=10">
+  <link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
   <div class="app">
@@ -38,18 +38,20 @@
 
     <main>
       <section id="tab-cal" class="tab active">
-        <div class="cal-layout">
+        <div class="cal-layout" id="calLayout">
           <div class="month">
             <div class="month-head">
-              <h2 id="monthTitle"></h2>
+              <div class="cal-titles"><h2 id="calTitle"></h2><span id="calSub"></span></div>
               <div class="month-nav">
-                <button class="icon-btn" data-month="-1" aria-label="Föregående månad">‹</button>
-                <button class="text-btn" data-month="0">Idag</button>
-                <button class="icon-btn" data-month="1" aria-label="Nästa månad">›</button>
+                <button class="icon-btn" data-nav="-1" aria-label="Föregående">‹</button>
+                <button class="text-btn" data-nav="0">Idag</button>
+                <button class="icon-btn" data-nav="1" aria-label="Nästa">›</button>
               </div>
             </div>
-            <div class="weekdays"><span>Mån</span><span>Tis</span><span>Ons</span><span>Tor</span><span>Fre</span><span>Lör</span><span>Sön</span></div>
-            <div id="grid" class="grid"></div>
+            <nav class="views" id="viewSeg" aria-label="Kalendervy">
+              <button data-view="day">Dag</button><button data-view="week">Vecka</button><button data-view="month">Månad</button><button data-view="year">År</button>
+            </nav>
+            <div id="calBody"></div>
           </div>
           <div class="agenda">
             <h3 id="dayTitle"></h3>
@@ -149,6 +151,7 @@
           <ul class="examples">
             <li>Kan du lägga till att jag har match klockan 16:40 till 18:40 imorgon</li>
             <li>Lägg till bandyträning på fredag kl 21–22, med samling klockan 20</li>
+            <li>Äta banan den 26 november, åka och fiska den 10 december kl 10–15 och äta gröt den 29:e kl 8–8:15</li>
             <li>Vad har jag idag? · Vad har jag i veckan?</li>
             <li>Flytta matchen till kl 17 · Byt namn på matchen till final</li>
             <li>Ta bort tandläkaren</li>
@@ -178,7 +181,7 @@
     </div>
   </footer>
 
-  <script src="brain.js?v=10"></script>
-  <script src="app.js?v=10"></script>
+  <script src="brain.js?v=11"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>

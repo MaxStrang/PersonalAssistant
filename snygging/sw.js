@@ -1,5 +1,5 @@
 // Gör att appen funkar offline – men hämtar ALLTID senaste versionen när nätet finns.
-const CACHE = 'snygging-v10';
+const CACHE = 'snygging-v11';
 const FILES = ['./', './index.html', './style.css', './app.js', './brain.js', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
